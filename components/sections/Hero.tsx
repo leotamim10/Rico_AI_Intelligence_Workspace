@@ -85,7 +85,7 @@ export function Hero() {
     <section
       ref={sectionRef}
       onPointerMove={onPointerMove}
-      className="relative h-[200vh]"
+      className="relative h-[340vh]"
       aria-label="Xai — intelligence workspace"
     >
       <div className="sticky top-0 flex h-screen flex-col items-center justify-center overflow-hidden">

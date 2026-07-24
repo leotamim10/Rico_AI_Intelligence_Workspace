@@ -61,10 +61,11 @@ function buildAttributes(count: number) {
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
 
-    // aChaos — random cloud in a sphere.
+    // aChaos — random cloud in a sphere, core biased hollow so the
+    // center stays legible behind the headline.
     const theta = rand() * Math.PI * 2;
     const phi = Math.acos(2 * rand() - 1);
-    const cr = RADIUS * Math.cbrt(rand());
+    const cr = RADIUS * (0.4 + 0.6 * Math.cbrt(rand()));
     chaos[i3] = cr * Math.sin(phi) * Math.cos(theta);
     chaos[i3 + 1] = cr * Math.sin(phi) * Math.sin(theta);
     chaos[i3 + 2] = cr * Math.cos(phi);
@@ -104,7 +105,7 @@ export function ParticleField({
     () => ({
       uProgress: { value: 0 },
       uTime: { value: 0 },
-      uSize: { value: 5.5 },
+      uSize: { value: 1.35 },
       uColorDim: { value: new THREE.Color("#5f676c") },
       uColorAccent: { value: new THREE.Color("#4f8ff7") },
     }),

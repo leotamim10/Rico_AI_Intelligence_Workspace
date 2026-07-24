@@ -36,6 +36,6 @@ void main() {
   vDepth = -mvPosition.z;
 
   gl_Position = projectionMatrix * mvPosition;
-  // Perspective-attenuated point size.
-  gl_PointSize = uSize * aScale * (300.0 / vDepth);
+  // Perspective-attenuated point size, clamped so near points never bloom.
+  gl_PointSize = clamp(uSize * aScale * (32.0 / vDepth), 1.0, 7.0);
 }
