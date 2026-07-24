@@ -1,3 +1,4 @@
+import { Dashboard } from "@/components/sections/Dashboard";
 import { Hero } from "@/components/sections/Hero";
 import { InsightFlow } from "@/components/sections/InsightFlow";
 
@@ -11,6 +12,7 @@ export default function Home() {
     <main>
       <Hero />
       <InsightFlow />
+      <Dashboard />
     </main>
   );
 }
