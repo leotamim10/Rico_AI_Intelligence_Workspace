@@ -92,8 +92,17 @@ export function Hero() {
         {/* Single subtle radial glow behind the field. */}
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
 
-        {/* Particle field */}
-        <div className="absolute inset-0">
+        {/* Particle field — edges feathered so the canvas dissolves into
+            the background instead of cutting off with a hard rectangle. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent 0%, black 12%, black 80%, transparent 100%)",
+            maskImage:
+              "linear-gradient(to bottom, transparent 0%, black 12%, black 80%, transparent 100%)",
+          }}
+        >
           <Scene
             progressRef={progressRef}
             pointerRef={pointerRef}

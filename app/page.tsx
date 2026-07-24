@@ -1,4 +1,5 @@
 import { Hero } from "@/components/sections/Hero";
+import { InsightFlow } from "@/components/sections/InsightFlow";
 
 /**
  * Page composition. No logic, no styles beyond section ordering.
@@ -9,6 +10,7 @@ export default function Home() {
   return (
     <main>
       <Hero />
+      <InsightFlow />
     </main>
   );
 }
