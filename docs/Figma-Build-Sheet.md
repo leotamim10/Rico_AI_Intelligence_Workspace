@@ -12,7 +12,7 @@ link → Can view**, then open it in a private window to confirm.
 ## 0 · Setup (30m)
 
 - Two pages: **`01 Foundations`** and **`02 Screens`**.
-- Open the live site at `rico-ai-intelligence-workspace.vercel.app` and take
+- Open the live site at `reco-ai-intelligence-workspace.vercel.app` and take
   clean full-screen screenshots of: **Hero**, **Insight Flow** (resolved state),
   **Dashboard**. Drop them on a scratch area of `02 Screens` as tracing refs.
 - Set the Figma canvas/background to `#08090A` so contrast reads true.
