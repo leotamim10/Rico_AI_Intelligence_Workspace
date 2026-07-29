@@ -40,6 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# product-doc PDF build intermediates
+# product-doc PDF build intermediate (the .pdf itself is committed as a deliverable)
 docs/Xai-Product-Doc.print.html
-docs/Xai-Product-Doc.pdf
