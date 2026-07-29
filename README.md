@@ -16,7 +16,7 @@ across a single `uProgress` uniform, bookends the experience.
 | | |
 |---|---|
 | **Live** | https://rico-ai-intelligence-workspace.vercel.app |
-| **Figma** | _reverse-built on Day 2 — link pending_ |
+| **Figma** | https://www.figma.com/make/3U24rtY2ZBF17HZqTdjG1n/App-Builder?fullscreen=1 |
 | **Walkthrough video** | _recorded on Day 2 — link pending_ |
 
 ## Stack
