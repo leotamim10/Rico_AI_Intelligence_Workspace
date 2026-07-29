@@ -13,7 +13,7 @@ const Scene = dynamic(() => import("@/components/three/Scene"), { ssr: false });
 export function Hero() {
   // Scroll scrubs the particle field from chaos (0) to structured (1).
   // On small/touch screens and under reduced-motion the section is one
-  // viewport tall (see h-screen below) and renders the resolved state.
+  // viewport tall (see h-dvh below) and renders the resolved state.
   const {
     sectionRef,
     progressRef,
@@ -28,10 +28,10 @@ export function Hero() {
     <section
       ref={sectionRef}
       onPointerMove={onPointerMove}
-      className="relative h-screen motion-reduce:h-screen! md:h-[340vh]"
+      className="relative h-dvh motion-reduce:h-dvh! md:h-[340vh]"
       aria-label="Xai — intelligence workspace"
     >
-      <div className="sticky top-0 flex h-screen flex-col items-center justify-center overflow-hidden">
+      <div className="sticky top-0 flex h-dvh flex-col items-center justify-center overflow-hidden">
         {/* Single subtle radial glow behind the field. */}
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
 

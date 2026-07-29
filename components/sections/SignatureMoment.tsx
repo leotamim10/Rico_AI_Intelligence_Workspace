@@ -26,10 +26,10 @@ export function SignatureMoment() {
     <section
       ref={sectionRef}
       onPointerMove={onPointerMove}
-      className="relative h-screen border-t border-border motion-reduce:h-screen! md:h-[300vh]"
+      className="relative h-dvh border-t border-border motion-reduce:h-dvh! md:h-[300vh]"
       aria-label="Insight, clustered and in motion"
     >
-      <div className="sticky top-0 flex h-screen flex-col items-center justify-center overflow-hidden">
+      <div className="sticky top-0 flex h-dvh flex-col items-center justify-center overflow-hidden">
         <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
 
         {/* Same field, driven into its clustered state. Depth fog in the
