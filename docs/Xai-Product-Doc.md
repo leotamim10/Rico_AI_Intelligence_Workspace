@@ -3,6 +3,7 @@
 
 **Live:** https://reco-ai-intelligence-workspace.vercel.app
 **Figma:** https://www.figma.com/make/3U24rtY2ZBF17HZqTdjG1n/App-Builder?fullscreen=1
+**Walkthrough video:** https://youtu.be/pTYRjmJRxrA
 **Repository:** github.com/leotamim10/Rico_AI_Intelligence_Workspace
 
 ---

@@ -17,7 +17,7 @@ across a single `uProgress` uniform, bookends the experience.
 |---|---|
 | **Live** | https://reco-ai-intelligence-workspace.vercel.app |
 | **Figma** | https://www.figma.com/make/3U24rtY2ZBF17HZqTdjG1n/App-Builder?fullscreen=1 |
-| **Walkthrough video** | _recorded on Day 2 — link pending_ |
+| **Walkthrough video** | https://youtu.be/pTYRjmJRxrA |
 
 ## Stack
 
