@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 
+import { StatChip } from "@/components/ui/StatChip";
 import { duration, ease } from "@/lib/motion/easings";
 import { riseIn, staggerParent } from "@/lib/motion/variants";
 import { usePinnedParticleProgress } from "@/lib/motion/usePinnedParticleProgress";
@@ -11,13 +12,15 @@ const Scene = dynamic(() => import("@/components/three/Scene"), { ssr: false });
 
 export function Hero() {
   // Scroll scrubs the particle field from chaos (0) to structured (1).
+  // On small/touch screens and under reduced-motion the section is one
+  // viewport tall (see h-screen below) and renders the resolved state.
   const {
     sectionRef,
     progressRef,
     pointerRef,
     count,
     active,
-    reduced,
+    staticMode,
     onPointerMove,
   } = usePinnedParticleProgress(0, 1);
 
@@ -25,7 +28,7 @@ export function Hero() {
     <section
       ref={sectionRef}
       onPointerMove={onPointerMove}
-      className="relative h-[340vh]"
+      className="relative h-screen motion-reduce:h-screen! md:h-[340vh]"
       aria-label="Xai — intelligence workspace"
     >
       <div className="sticky top-0 flex h-screen flex-col items-center justify-center overflow-hidden">
@@ -48,7 +51,7 @@ export function Hero() {
             pointerRef={pointerRef}
             count={count}
             active={active}
-            parallax={reduced ? 0 : 0.6}
+            parallax={staticMode ? 0 : 0.6}
           />
         </div>
 
@@ -57,7 +60,7 @@ export function Hero() {
           variants={staggerParent}
           initial="hidden"
           animate="show"
-          className="relative z-10 flex max-w-[52rem] flex-col items-center px-6 text-center"
+          className="relative z-10 flex max-w-208 flex-col items-center px-6 text-center"
         >
           <motion.span
             variants={riseIn}
@@ -87,17 +90,14 @@ export function Hero() {
             variants={riseIn}
             className="mt-10 flex items-center gap-3"
           >
-            <span className="tabular rounded-sm border border-border bg-surface-2 px-3 py-1.5 font-mono text-mono text-text-secondary">
-              48,213 signals / day
-            </span>
-            <span className="tabular rounded-sm border border-border bg-surface-2 px-3 py-1.5 font-mono text-mono text-text-secondary">
-              1.2s to insight
-            </span>
+            <StatChip>48,213 signals / day</StatChip>
+            <StatChip>1.2s to insight</StatChip>
           </motion.div>
         </motion.div>
 
-        {/* Scroll cue — geometry motion, not a fade. */}
-        {!reduced && (
+        {/* Scroll cue — geometry motion, not a fade. Hidden when static
+            (no scrub to cue toward). */}
+        {!staticMode && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

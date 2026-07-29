@@ -7,9 +7,13 @@ import { useDampedValue } from "./useDampedValue";
 /**
  * Shared driver for a pinned particle scene. Scroll through the section
  * scrubs uProgress from `from` to `to` (damped); the render loop parks
- * when offscreen; cursor parallax is exposed via pointerRef. Under
- * reduced-motion the progress snaps to `to` (the resolved end-state) and
- * parallax is disabled.
+ * when offscreen; cursor parallax is exposed via pointerRef.
+ *
+ * When the scene is "static" — reduced-motion OR a small/touch screen —
+ * progress snaps to `to` (the resolved end-state), the scroll listener is
+ * skipped, and parallax is disabled. Small screens unpin (the section is
+ * only one viewport tall via responsive CSS) rather than ship broken
+ * pinning + scroll-jacking on touch.
  *
  * Used by both Hero (0 → 1) and SignatureMoment (1 → 2) so the two ends
  * of the same morph stay in sync.
@@ -21,15 +25,23 @@ export function usePinnedParticleProgress(from: number, to: number, lerp = 0.09)
 
   const [count, setCount] = useState(6000);
   const [active, setActive] = useState(true);
-  const [reduced, setReduced] = useState(false);
+  // `staticMode` collapses scrubbing for reduced-motion and small screens.
+  const [staticMode, setStaticMode] = useState(false);
 
   useEffect(() => {
-    setCount(window.innerWidth < 768 ? 2000 : 6000);
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const mobile = window.matchMedia("(max-width: 767px)");
+    const rm = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      setCount(mobile.matches ? 2000 : 6000);
+      setStaticMode(rm.matches || mobile.matches);
+    };
+    sync();
+    mobile.addEventListener("change", sync);
+    rm.addEventListener("change", sync);
+    return () => {
+      mobile.removeEventListener("change", sync);
+      rm.removeEventListener("change", sync);
+    };
   }, []);
 
   // Scroll scrubs progress across the pinned range.
@@ -37,7 +49,7 @@ export function usePinnedParticleProgress(from: number, to: number, lerp = 0.09)
     const el = sectionRef.current;
     if (!el) return;
 
-    if (reduced) {
+    if (staticMode) {
       setTarget(to);
       return;
     }
@@ -63,7 +75,7 @@ export function usePinnedParticleProgress(from: number, to: number, lerp = 0.09)
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [reduced, from, to, setTarget]);
+  }, [staticMode, from, to, setTarget]);
 
   // Park the render loop when offscreen.
   useEffect(() => {
@@ -78,7 +90,7 @@ export function usePinnedParticleProgress(from: number, to: number, lerp = 0.09)
   }, []);
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (reduced) return;
+    if (staticMode) return;
     pointerRef.current = {
       x: (e.clientX / window.innerWidth) * 2 - 1,
       y: -((e.clientY / window.innerHeight) * 2 - 1),
@@ -91,7 +103,7 @@ export function usePinnedParticleProgress(from: number, to: number, lerp = 0.09)
     pointerRef,
     count,
     active,
-    reduced,
+    staticMode,
     onPointerMove,
   };
 }

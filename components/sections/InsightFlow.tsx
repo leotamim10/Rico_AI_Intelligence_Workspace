@@ -99,14 +99,17 @@ export function InsightFlow() {
     if (!root || !pin) return;
 
     gsap.registerPlugin(ScrollTrigger);
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    // Skip the pin + scrub for reduced-motion and small/touch screens —
+    // scroll-jacking a stacked column on mobile is the "broken pinning"
+    // failure mode. Render the resolved diagram statically instead.
+    const staticMode =
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      window.matchMedia("(max-width: 767px)").matches;
 
     const ctx = gsap.context(() => {
       const q = gsap.utils.selector(root);
 
-      if (reduced) {
+      if (staticMode) {
         // Static resolved end-state: everything drawn, every node present.
         gsap.set(q(".draw"), { strokeDashoffset: 0 });
         gsap.set(q(".source-node,.hub-node"), { attr: { r: 5 } });
@@ -162,10 +165,12 @@ export function InsightFlow() {
     <section ref={rootRef} aria-label="How Xai turns signal into insight">
       <div
         ref={pinRef}
-        className="h-screen overflow-hidden border-t border-border"
+        className="border-t border-border md:h-screen md:overflow-hidden"
       >
-        {/* Framed content column — hairline rails, Clerk/Linear rhythm */}
-        <div className="mx-auto flex h-full max-w-[1200px] items-center border-x border-border px-6 sm:px-12">
+        {/* Framed content column — hairline rails, Clerk/Linear rhythm.
+            Pinned + centered on desktop; normal-flow with padding on
+            mobile so the stacked column isn't clipped. */}
+        <div className="mx-auto flex h-full max-w-[1200px] items-center border-x border-border px-6 py-24 sm:px-12 md:py-0">
           <div className="flex w-full flex-col gap-16 md:flex-row md:items-center md:gap-24">
           {/* Left — stage index with a layoutId active marker */}
           <div className="w-full shrink-0 md:w-[340px]">

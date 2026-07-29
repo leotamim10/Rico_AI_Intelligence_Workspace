@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 
+import { StatChip } from "@/components/ui/StatChip";
 import { riseIn, staggerParent } from "@/lib/motion/variants";
 import { usePinnedParticleProgress } from "@/lib/motion/usePinnedParticleProgress";
 
@@ -10,13 +11,14 @@ const Scene = dynamic(() => import("@/components/three/Scene"), { ssr: false });
 
 export function SignatureMoment() {
   // Continues the same morph: structured (1) → clustered insight (2).
+  // Static (small/touch or reduced-motion) → one viewport, resolved state.
   const {
     sectionRef,
     progressRef,
     pointerRef,
     count,
     active,
-    reduced,
+    staticMode,
     onPointerMove,
   } = usePinnedParticleProgress(1, 2);
 
@@ -24,7 +26,7 @@ export function SignatureMoment() {
     <section
       ref={sectionRef}
       onPointerMove={onPointerMove}
-      className="relative h-[300vh] border-t border-border"
+      className="relative h-screen border-t border-border motion-reduce:h-screen! md:h-[300vh]"
       aria-label="Insight, clustered and in motion"
     >
       <div className="sticky top-0 flex h-screen flex-col items-center justify-center overflow-hidden">
@@ -46,7 +48,7 @@ export function SignatureMoment() {
             pointerRef={pointerRef}
             count={count}
             active={active}
-            parallax={reduced ? 0 : 0.75}
+            parallax={staticMode ? 0 : 0.75}
           />
         </div>
 
@@ -79,12 +81,8 @@ export function SignatureMoment() {
           </motion.p>
 
           <motion.div variants={riseIn} className="mt-10 flex items-center gap-3">
-            <span className="tabular rounded-sm border border-border bg-surface-2 px-3 py-1.5 font-mono text-mono text-text-secondary">
-              347 automations triggered
-            </span>
-            <span className="tabular rounded-sm border border-border bg-surface-2 px-3 py-1.5 font-mono text-mono text-text-secondary">
-              0 manual triage
-            </span>
+            <StatChip>347 automations triggered</StatChip>
+            <StatChip>0 manual triage</StatChip>
           </motion.div>
         </motion.div>
       </div>
