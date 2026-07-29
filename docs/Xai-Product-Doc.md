@@ -169,8 +169,14 @@ what that constraint cost and what I'd spend more time on:
   profile and a Lighthouse pass on real hardware are still outstanding — the
   build environment's software GL renderer gives misleading numbers. First
   follow-up: profile on a mid-tier laptop and a real phone.
-- **Safari / WebGL edge cases** are unverified. WebGL and `backdrop-filter`
-  break there first; I'd want a real-device Safari pass before calling it done.
+- **Safari is audited and mitigated, not yet device-verified.** WebGL and
+  `backdrop-filter` break in Safari first, so I audited for them: no
+  `backdrop-filter`/glassmorphism, no version-sensitive CSS (`color-mix`,
+  `oklch`, `:has`), Safari-safe WebGL context flags, and a correct sticky
+  pattern. The one real finding — iOS Safari's `100vh` counting the collapsible
+  toolbar — is fixed by switching the hero and signature viewport containers to
+  `100dvh` (`h-dvh`). A real-device Safari/iOS pass is the remaining step; the
+  Linux build environment can't run WebKit.
 - **Mobile is functional, not crafted.** Small screens unpin and reduce particle
   count so nothing is *broken* — but a phone deserves its own choreography, not
   just a de-risked desktop. With more time the signature moment would get a
