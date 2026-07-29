@@ -17,7 +17,7 @@
 
   --text-primary: #f2f4f5;
   --text-secondary: #9ba3a8;
-  --text-tertiary: #5f676c;
+  --text-tertiary: #7b838a; /* WCAG AA (4.5:1) on --bg for 13px labels */
 
   --accent: #4f8ff7;
   --accent-muted: #2c4e85;
