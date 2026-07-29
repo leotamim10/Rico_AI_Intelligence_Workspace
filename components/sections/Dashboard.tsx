@@ -218,7 +218,7 @@ export function Dashboard() {
       aria-label="Xai workspace dashboard"
       className="border-t border-border"
     >
-      <div className="mx-auto max-w-[1200px] border-x border-border px-6 py-24 sm:px-12 md:py-32">
+      <div className="mx-auto max-w-300 border-x border-border px-6 py-24 sm:px-12 md:py-32">
         <motion.div
           variants={container}
           initial={reduced ? undefined : "hidden"}
@@ -299,7 +299,7 @@ export function Dashboard() {
                             key={t.id}
                             type="button"
                             onClick={() => setTab(t.id)}
-                            className={`relative rounded-[4px] px-3 py-1.5 text-small transition-colors duration-150 ${
+                            className={`relative rounded-sm px-3 py-1.5 text-small transition-colors duration-150 ${
                               isActive
                                 ? "text-text-primary"
                                 : "text-text-tertiary hover:text-text-secondary"
@@ -308,7 +308,7 @@ export function Dashboard() {
                             {isActive && (
                               <motion.span
                                 layoutId="dash-view-active"
-                                className="absolute inset-0 rounded-[4px] bg-surface-3"
+                                className="absolute inset-0 rounded-sm bg-surface-3"
                                 transition={ease.spring}
                               />
                             )}

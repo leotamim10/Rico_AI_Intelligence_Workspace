@@ -170,7 +170,7 @@ export function InsightFlow() {
         {/* Framed content column — hairline rails, Clerk/Linear rhythm.
             Pinned + centered on desktop; normal-flow with padding on
             mobile so the stacked column isn't clipped. */}
-        <div className="mx-auto flex h-full max-w-[1200px] items-center border-x border-border px-6 py-24 sm:px-12 md:py-0">
+        <div className="mx-auto flex h-full max-w-300 items-center border-x border-border px-6 py-24 sm:px-12 md:py-0">
           <div className="flex w-full flex-col gap-16 md:flex-row md:items-center md:gap-24">
           {/* Left — stage index with a layoutId active marker */}
           <div className="w-full shrink-0 md:w-[340px]">
