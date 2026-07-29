@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# product-doc PDF build intermediates
+docs/Xai-Product-Doc.print.html
+docs/Xai-Product-Doc.pdf
