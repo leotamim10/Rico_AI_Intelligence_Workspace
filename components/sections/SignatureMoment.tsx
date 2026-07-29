@@ -57,7 +57,7 @@ export function SignatureMoment() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, amount: 0.5 }}
-          className="relative z-10 flex max-w-[52rem] flex-col items-center px-6 text-center"
+          className="relative z-10 flex max-w-208 flex-col items-center px-6 text-center"
         >
           <motion.span
             variants={riseIn}
