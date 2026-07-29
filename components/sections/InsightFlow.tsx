@@ -172,7 +172,7 @@ export function InsightFlow() {
             <span className="font-mono text-mono uppercase tracking-[0.22em] text-text-tertiary">
               The pipeline
             </span>
-            <h2 className="mt-4 text-h2 text-text-primary">
+            <h2 className="mt-4 font-display text-h2 text-text-primary">
               One system,
               <br />
               three states.

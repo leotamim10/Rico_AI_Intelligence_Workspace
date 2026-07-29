@@ -1,6 +1,7 @@
 import { Dashboard } from "@/components/sections/Dashboard";
 import { Hero } from "@/components/sections/Hero";
 import { InsightFlow } from "@/components/sections/InsightFlow";
+import { SignatureMoment } from "@/components/sections/SignatureMoment";
 
 /**
  * Page composition. No logic, no styles beyond section ordering.
@@ -13,6 +14,7 @@ export default function Home() {
       <Hero />
       <InsightFlow />
       <Dashboard />
+      <SignatureMoment />
     </main>
   );
 }

@@ -234,7 +234,7 @@ export function Dashboard() {
               <span className="font-mono text-mono uppercase tracking-[0.22em] text-text-tertiary">
                 The workspace
               </span>
-              <h2 className="text-h2 text-text-primary">
+              <h2 className="font-display text-h2 text-text-primary">
                 Every signal, one surface.
               </h2>
             </div>

@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
+import { Geist, Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+// Display family for section headlines only (weights match the type
+// scale's heading tiers: h2 = 500, display/h1 = 600). Body stays Inter.
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+  weight: ["500", "600"],
   display: "swap",
 });
 
@@ -28,7 +37,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${geist.variable} ${geistMono.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

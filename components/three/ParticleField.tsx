@@ -46,15 +46,19 @@ function buildAttributes(count: number) {
   const half = (side - 1) / 2;
 
   // Cluster centers for the clustered state (k-means-style groups).
+  // Groups sit in the left/right margins — every center clears the
+  // centered copy column (|x| >= 3.3) so the headline and body stay
+  // legible behind the resolved clusters. They spread vertically and
+  // vary in depth for parallax.
   const K = 7;
   const centers: [number, number, number][] = [];
   for (let k = 0; k < K; k++) {
-    const a = (k / K) * Math.PI * 2;
-    const r = 2.4 + rand() * 0.8;
+    const side = k % 2 === 0 ? -1 : 1;
+    const t = k / (K - 1);
     centers.push([
-      Math.cos(a) * r,
-      (rand() - 0.5) * 3.0,
-      Math.sin(a) * r * 0.7,
+      side * (3.3 + rand() * 1.4),
+      (t - 0.5) * 4.4 + (rand() - 0.5) * 0.8,
+      (rand() - 0.5) * 2.4 - 0.3,
     ]);
   }
 

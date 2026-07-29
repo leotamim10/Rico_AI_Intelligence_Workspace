@@ -53,6 +53,7 @@
 
   /* Fonts — wired to next/font variables in layout.tsx */
   --font-sans: var(--font-inter);
+  --font-display: var(--font-geist);
   --font-mono: var(--font-geist-mono);
 
   /* Radius */
