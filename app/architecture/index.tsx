@@ -92,35 +92,6 @@ function AppWindow({ host, port, status, children }: WindowProps) {
 
 /* ------------------------- scaffolded surface ---------------------- */
 
-/** Body for a consumer not yet wired: title header + a single note. */
-function SurfaceHeader({
-  role,
-  title,
-  note,
-  status,
-}: {
-  role: string;
-  title: string;
-  note: string;
-  status: Status;
-}) {
-  const s = STATUS[status];
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-col gap-2">
-        <span className="font-mono text-mono uppercase tracking-wider text-text-tertiary">
-          {role}
-        </span>
-        <h3 className="font-claude text-h3 text-text-primary">{title}</h3>
-      </div>
-      <div className="mt-auto flex items-center gap-2 border-t border-border pt-4">
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
-        <span className="font-mono text-mono text-text-tertiary">{note}</span>
-      </div>
-    </div>
-  );
-}
-
 /* ------------------------- tenantWeb sign-in ----------------------- */
 
 /**
@@ -206,6 +177,21 @@ type PinSignal = {
   tone: 'positive' | 'negative' | 'accent';
   nonce: number;
 };
+
+/* --------------------- product born / publish ---------------------- */
+
+/** Scaffold revealed by the "Product Born" animation, stage by stage. */
+const BORN_TREE = [
+  { dir: 'catalog', items: 'product, variant, media' },
+  { dir: 'taxonomy', items: 'category tree, families, bindings' },
+  { dir: 'attributes', items: 'definitions, resolution, validation' },
+  { dir: 'publishing', items: 'snapshot resolution, outbox writes' },
+  { dir: 'masterdata', items: 'location, partner, UoM registries' },
+];
+const BORN_STEP_MS = 420;
+
+/** The two consumers that read the published snapshot from Redis. */
+type Reader = 'centralWeb' | 'dashboard';
 
 /** A determinate progress line — scaleX only, no loop, no linear. */
 function ProgressLine({
@@ -791,6 +777,9 @@ const FUTURE_TRACE = 'M736 44 H794';
 const REDPANDA_D = 'M224 110 H560';
 const DRAIN = 'M620 86 C 660 82 660 72 700 68';
 
+/** Worker -> Redis cache, lit while a product publish is caching. */
+const WORKER_REDIS = 'M694 68 C 716 104 720 130 712 158';
+
 /** Flow timing (seconds) — pulses sweep only while a request is served. */
 const FLOW = { cycle: 3.2, gap: 0.5, stagger: 0.5 } as const;
 
@@ -907,18 +896,23 @@ const SVG_TEXT = { fontFamily: 'var(--font-geist-mono)' } as const;
 function PublishingMachine({
   active,
   draining,
+  caching,
   reduced,
   portRef,
   workerPortRef,
+  redisPortRef,
 }: {
   active: boolean;
   draining: boolean;
+  caching: boolean;
   reduced: boolean;
   portRef: RefObject<HTMLSpanElement | null>;
   workerPortRef: RefObject<HTMLSpanElement | null>;
+  redisPortRef: RefObject<HTMLSpanElement | null>;
 }) {
   const showPublish = active && !reduced;
-  const showDrain = draining && !reduced;
+  const showDrain = (draining || caching) && !reduced;
+  const showCache = caching && !reduced;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
@@ -926,11 +920,13 @@ function PublishingMachine({
           Publishing · push machine
         </h3>
         <span className="tabular font-mono text-mono text-text-tertiary">
-          {draining
-            ? 'draining events…'
-            : active
-              ? 'serving request…'
-              : 'idle · no requests'}
+          {caching
+            ? 'caching snapshot…'
+            : draining
+              ? 'draining events…'
+              : active
+                ? 'serving request…'
+                : 'idle · no requests'}
         </span>
       </div>
 
@@ -940,6 +936,11 @@ function PublishingMachine({
           ref={workerPortRef}
           className="absolute"
           style={{ left: '96.8%', top: '20%' }}
+        />
+        <span
+          ref={redisPortRef}
+          className="absolute"
+          style={{ left: '86.8%', top: '72.7%' }}
         />
         <svg
           viewBox="0 0 820 220"
@@ -960,6 +961,13 @@ function PublishingMachine({
           {/* Redpanda -> Worker drain link */}
           <path
             d={DRAIN}
+            fill="none"
+            stroke="var(--border-strong)"
+            strokeWidth={1.25}
+          />
+          {/* Worker -> Redis cache link */}
+          <path
+            d={WORKER_REDIS}
             fill="none"
             stroke="var(--border-strong)"
             strokeWidth={1.25}
@@ -1108,18 +1116,55 @@ function PublishingMachine({
             writes
           </text>
 
+          {/* Redis cache — read layer beside PostgreSQL */}
+          <path
+            d="M668 160 V196 A44 7 0 0 0 756 196 V160"
+            fill="var(--surface-2)"
+            stroke="var(--border-strong)"
+          />
+          <ellipse
+            cx={712}
+            cy={160}
+            rx={44}
+            ry={7}
+            fill="var(--surface-3)"
+            stroke="var(--border-strong)"
+          />
+          <text
+            x={712}
+            y={184}
+            textAnchor="middle"
+            fontSize={12}
+            fill="var(--text-secondary)"
+            style={SVG_TEXT}
+          >
+            Redis
+          </text>
+          <text
+            x={712}
+            y={215}
+            textAnchor="middle"
+            fontSize={10.5}
+            fill="var(--text-tertiary)"
+            style={SVG_TEXT}
+          >
+            snapshot cache
+          </text>
+
           {/* publish pulses — snapshot fanning out to every consumer */}
           {showPublish &&
             ROUTES.map((r, i) => (
               <FlowPulse key={`pub-${r.key}`} d={r.d} delay={i * FLOW.stagger} />
             ))}
-          {/* drain pulses — an access event: push -> Redpanda -> Worker */}
+          {/* drain pulses — an event: push -> Redpanda -> Worker */}
           {showDrain && (
             <>
               <FlowPulse d={REDPANDA_D} delay={0} />
               <FlowPulse d={DRAIN} delay={0.35} />
             </>
           )}
+          {/* cache pulse — a publish resolving into Redis */}
+          {showCache && <FlowPulse d={WORKER_REDIS} delay={0.7} />}
           {REALTIME_ACTIVE && !reduced && <FlowPulse d={FUTURE_TRACE} delay={0} />}
         </svg>
       </div>
@@ -1303,15 +1348,19 @@ function BackendServer({
   reduced,
   active,
   draining,
+  caching,
   portRef,
   workerPortRef,
+  redisPortRef,
   pin,
 }: {
   reduced: boolean;
   active: boolean;
   draining: boolean;
+  caching: boolean;
   portRef: RefObject<HTMLSpanElement | null>;
   workerPortRef: RefObject<HTMLSpanElement | null>;
+  redisPortRef: RefObject<HTMLSpanElement | null>;
   pin: PinSignal | null;
 }) {
   return (
@@ -1319,9 +1368,11 @@ function BackendServer({
       <PublishingMachine
         active={active}
         draining={draining}
+        caching={caching}
         reduced={reduced}
         portRef={portRef}
         workerPortRef={workerPortRef}
+        redisPortRef={redisPortRef}
       />
       <EventTerminal reduced={reduced} pin={pin} />
     </ServerContainer>
@@ -1485,7 +1536,11 @@ function NotificationCard({
   );
 }
 
-/** A read-only consumer window that pops a request card when targeted. */
+/**
+ * A read-only consumer window. Pops an access-request card when targeted;
+ * once a product is published it reads the snapshot from Redis (never
+ * Postgres) — shown as a badge and an interactive "Read snapshot".
+ */
 function ConsumerWindow({
   host,
   port,
@@ -1494,6 +1549,9 @@ function ConsumerWindow({
   note,
   awaiting,
   onDecide,
+  published,
+  onRead,
+  reading,
   reduced,
 }: {
   host: string;
@@ -1503,6 +1561,9 @@ function ConsumerWindow({
   note: string;
   awaiting: { fromApp: string; targetApp: string; eventId: string } | null;
   onDecide: (d: 'granted' | 'denied') => void;
+  published: boolean;
+  onRead: () => void;
+  reading: boolean;
   reduced: boolean;
 }) {
   return (
@@ -1510,9 +1571,186 @@ function ConsumerWindow({
       {awaiting ? (
         <NotificationCard req={awaiting} onDecide={onDecide} reduced={reduced} />
       ) : (
-        <SurfaceHeader role={role} title={title} note={note} status="live" />
+        <div className="flex h-full flex-col">
+          <div className="flex flex-col gap-2">
+            <span className="font-mono text-mono uppercase tracking-wider text-text-tertiary">
+              {role}
+            </span>
+            <h3 className="font-claude text-h3 text-text-primary">{title}</h3>
+          </div>
+          <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
+            {published ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
+                  <span className="font-mono text-mono text-text-tertiary">
+                    snapshot v1 · Redis (read-only)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRead}
+                  disabled={reading}
+                  className="self-start rounded-sm border border-border bg-surface-1 px-2 py-1 font-mono text-mono text-text-secondary transition-colors duration-150 hover:border-border-strong hover:text-text-primary disabled:opacity-40"
+                >
+                  {reading ? 'reading…' : 'Read snapshot'}
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
+                <span className="font-mono text-mono text-text-tertiary">
+                  {note}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </AppWindow>
+  );
+}
+
+/** The born-scaffold tree revealed stage by stage. */
+function BornTree({ idx, reduced }: { idx: number; reduced: boolean }) {
+  const visible = BORN_TREE.slice(0, Math.min(idx, BORN_TREE.length));
+  return (
+    <div className="rounded-sm border border-border bg-bg p-3 font-mono text-mono">
+      <div className="mb-1 text-text-tertiary">ecoflow/</div>
+      {visible.map((s, i) => {
+        const row = (
+          <div className="flex items-baseline gap-2 whitespace-nowrap py-0.5">
+            <span className="shrink-0 text-text-tertiary">
+              {i === BORN_TREE.length - 1 ? '└──' : '├──'}
+            </span>
+            <span className="shrink-0 text-accent">{s.dir}/</span>
+            <span className="min-w-0 flex-1 truncate text-text-tertiary">
+              {s.items}
+            </span>
+            <span className="shrink-0 text-positive">
+              <TickGlyph />
+            </span>
+          </div>
+        );
+        return reduced ? (
+          <div key={s.dir}>{row}</div>
+        ) : (
+          <motion.div
+            key={s.dir}
+            variants={riseInSm}
+            initial="hidden"
+            animate="show"
+          >
+            {row}
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * admin.walton's master-data console: born a product (animated scaffold),
+ * then publish it. Also pops the access-request card when targeted.
+ */
+function AdminConsole({
+  awaiting,
+  onDecide,
+  publishing,
+  published,
+  busy,
+  onPublish,
+  reduced,
+}: {
+  awaiting: { fromApp: string; targetApp: string; eventId: string } | null;
+  onDecide: (d: 'granted' | 'denied') => void;
+  publishing: boolean;
+  published: boolean;
+  busy: boolean;
+  onPublish: () => void;
+  reduced: boolean;
+}) {
+  const [bornPhase, setBornPhase] = useState<'idle' | 'animating' | 'ready'>(
+    'idle',
+  );
+  const [bornIdx, setBornIdx] = useState(0);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const after = (ms: number, fn: () => void) =>
+    timers.current.push(setTimeout(fn, ms));
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  useEffect(() => {
+    if (bornPhase !== 'animating') return;
+    if (reduced) {
+      after(0, () => setBornIdx(BORN_TREE.length));
+      after(BORN_STEP_MS, () => setBornPhase('ready'));
+      return;
+    }
+    for (let i = 1; i <= BORN_TREE.length; i++) {
+      after(BORN_STEP_MS * i, () => setBornIdx(i));
+    }
+    after(BORN_STEP_MS * (BORN_TREE.length + 1), () => setBornPhase('ready'));
+  }, [bornPhase, reduced]);
+
+  if (awaiting) {
+    return <NotificationCard req={awaiting} onDecide={onDecide} reduced={reduced} />;
+  }
+
+  const btn =
+    'flex w-full items-center justify-center gap-2 rounded-sm bg-accent px-3 py-2 text-small font-medium text-text-primary transition-colors duration-150 hover:bg-accent-muted disabled:opacity-40 disabled:hover:bg-accent';
+
+  return (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <span className="font-mono text-mono uppercase tracking-wider text-text-tertiary">
+          Master data console
+        </span>
+        <h3 className="font-claude text-h3 text-text-primary">Ecoflow admin</h3>
+      </div>
+
+      {bornPhase === 'idle' ? (
+        <div className="mt-auto">
+          <button
+            type="button"
+            onClick={() => setBornPhase('animating')}
+            disabled={busy}
+            className={btn}
+          >
+            Product Born
+          </button>
+        </div>
+      ) : (
+        <>
+          <BornTree idx={bornIdx} reduced={reduced} />
+          <div className="mt-auto">
+            {published ? (
+              <span className="inline-flex items-center gap-2 font-mono text-mono text-positive">
+                <span className="h-1.5 w-1.5 rounded-full bg-positive" />
+                Published · snapshot v1
+              </span>
+            ) : publishing ? (
+              <span className="inline-flex items-center gap-2 font-mono text-mono text-accent">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                publishing…
+              </span>
+            ) : bornPhase === 'ready' ? (
+              <button
+                type="button"
+                onClick={onPublish}
+                disabled={busy}
+                className={btn}
+              >
+                Publish
+              </button>
+            ) : (
+              <span className="font-mono text-mono text-text-tertiary">
+                scaffolding…
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1627,11 +1865,79 @@ export default function ArchitectureConsumers() {
     return () => timers.forEach(clearTimeout);
   }, [saga, emitPin]);
 
+  // product publish saga — one-way: push -> Redpanda -> worker -> Redis
+  // -> the two reader consumers, then resolve.
+  const [publish, setPublish] = useState<{
+    phase: 'publishing' | 'resolved';
+    eventId: string;
+  } | null>(null);
+  const [published, setPublished] = useState(false);
+  const [reading, setReading] = useState<Reader | null>(null);
+  const publishRef = useRef(publish);
+  useEffect(() => {
+    publishRef.current = publish;
+  }, [publish]);
+
+  const doPublish = useCallback(() => {
+    if (publishRef.current || sagaRef.current) return;
+    const eventId = Math.floor(Math.random() * 0xffff)
+      .toString(16)
+      .padStart(4, '0');
+    publishRef.current = { phase: 'publishing', eventId };
+    setPublish({ phase: 'publishing', eventId });
+    emitPin({
+      app: 'admin.walton',
+      who: 'product.published',
+      detail: `snapshot.resolved evt_${eventId}`,
+      tone: 'accent',
+    });
+  }, [emitPin]);
+
+  useEffect(() => {
+    if (!publish) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    if (publish.phase === 'publishing') {
+      timers.push(
+        setTimeout(
+          () =>
+            emitPin({
+              app: 'redis.walton',
+              who: 'cache',
+              detail: `snapshot v1 cached evt_${publish.eventId}`,
+              tone: 'positive',
+            }),
+          Math.round(ACCESS.forwardMs * 0.55),
+        ),
+      );
+      timers.push(
+        setTimeout(() => {
+          setPublished(true);
+          setPublish(p => (p ? { ...p, phase: 'resolved' } : p));
+        }, ACCESS.forwardMs),
+      );
+    } else if (publish.phase === 'resolved') {
+      timers.push(setTimeout(() => setPublish(null), ACCESS.resolveMs));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [publish, emitPin]);
+
+  const read = useCallback(
+    (who: Reader) => setReading(prev => prev ?? who),
+    [],
+  );
+  useEffect(() => {
+    if (!reading) return;
+    const t = setTimeout(() => setReading(null), 2200);
+    return () => clearTimeout(t);
+  }, [reading]);
+
   // refs for the cross-layout wires
   const stageRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
   const portRef = useRef<HTMLSpanElement>(null);
   const workerPortRef = useRef<HTMLSpanElement>(null);
+  const redisPortRef = useRef<HTMLSpanElement>(null);
+  const centralWebRef = useRef<HTMLDivElement>(null);
   const adminRef = useRef<HTMLDivElement>(null);
   const dashboardRef = useRef<HTMLDivElement>(null);
 
@@ -1666,7 +1972,15 @@ export default function ArchitectureConsumers() {
           eventId: saga.eventId,
         }
       : null;
-  const busy = !!saga;
+
+  const publishing = publish?.phase === 'publishing';
+  const busy = !!saga || !!publish;
+  const readRef =
+    reading === 'centralWeb'
+      ? centralWebRef
+      : reading === 'dashboard'
+        ? dashboardRef
+        : null;
 
   return (
     <section
@@ -1716,28 +2030,34 @@ export default function ArchitectureConsumers() {
                 </AppWindow>
               </motion.div>
 
-              <motion.div variants={item}>
-                <AppWindow host="walton" port={3001} status="live">
-                  <SurfaceHeader
-                    role="Catalog site"
-                    title="centralWeb"
-                    note="Reads snapshot v1"
-                    status="live"
-                  />
-                </AppWindow>
+              <motion.div ref={centralWebRef} variants={item}>
+                <ConsumerWindow
+                  host="walton"
+                  port={3001}
+                  role="Catalog site"
+                  title="centralWeb"
+                  note="Reads snapshot v1"
+                  awaiting={null}
+                  onDecide={decide}
+                  published={published}
+                  onRead={() => read('centralWeb')}
+                  reading={reading === 'centralWeb'}
+                  reduced={reduced ?? false}
+                />
               </motion.div>
 
               <motion.div ref={adminRef} variants={item}>
-                <ConsumerWindow
-                  host="admin.walton"
-                  port={3003}
-                  role="Master data console"
-                  title="Ecoflow admin"
-                  note="Authors product master"
-                  awaiting={awaitingFor('admin')}
-                  onDecide={decide}
-                  reduced={reduced ?? false}
-                />
+                <AppWindow host="admin.walton" port={3003} status="live">
+                  <AdminConsole
+                    awaiting={awaitingFor('admin')}
+                    onDecide={decide}
+                    publishing={publishing}
+                    published={published}
+                    busy={busy}
+                    onPublish={doPublish}
+                    reduced={reduced ?? false}
+                  />
+                </AppWindow>
               </motion.div>
 
               <motion.div ref={dashboardRef} variants={item}>
@@ -1749,6 +2069,9 @@ export default function ArchitectureConsumers() {
                   note="Streams sale.completed.v1"
                   awaiting={awaitingFor('dashboard')}
                   onDecide={decide}
+                  published={published}
+                  onRead={() => read('dashboard')}
+                  reading={reading === 'dashboard'}
                   reduced={reduced ?? false}
                 />
               </motion.div>
@@ -1759,13 +2082,15 @@ export default function ArchitectureConsumers() {
                 reduced={reduced ?? false}
                 active={consuming}
                 draining={backendDraining}
+                caching={publishing}
                 portRef={portRef}
                 workerPortRef={workerPortRef}
+                redisPortRef={redisPortRef}
                 pin={pin}
               />
             </motion.div>
 
-            {/* portal <-> push machine, and worker <-> target consumer */}
+            {/* portal <-> push machine */}
             <Wire
               stageRef={stageRef}
               fromRef={portalRef}
@@ -1775,6 +2100,7 @@ export default function ArchitectureConsumers() {
               flow={portalFlow}
               reduced={reduced ?? false}
             />
+            {/* worker -> the access target */}
             <Wire
               stageRef={stageRef}
               fromRef={workerPortRef}
@@ -1782,6 +2108,39 @@ export default function ArchitectureConsumers() {
               fromSide="center"
               toSide="bottom"
               flow={workerFlow}
+              reduced={reduced ?? false}
+            />
+            {/* worker -> the two publish readers, in parallel */}
+            {publishing && (
+              <>
+                <Wire
+                  stageRef={stageRef}
+                  fromRef={workerPortRef}
+                  toRef={centralWebRef}
+                  fromSide="center"
+                  toSide="bottom"
+                  flow="fwd"
+                  reduced={reduced ?? false}
+                />
+                <Wire
+                  stageRef={stageRef}
+                  fromRef={workerPortRef}
+                  toRef={dashboardRef}
+                  fromSide="center"
+                  toSide="bottom"
+                  flow="fwd"
+                  reduced={reduced ?? false}
+                />
+              </>
+            )}
+            {/* Redis -> a consumer reading the snapshot back */}
+            <Wire
+              stageRef={stageRef}
+              fromRef={redisPortRef}
+              toRef={readRef}
+              fromSide="center"
+              toSide="bottom"
+              flow={reading ? 'fwd' : null}
               reduced={reduced ?? false}
             />
           </div>
