@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ============================================================
    Design tokens — single source of truth.
@@ -124,7 +124,7 @@ body {
 /* Numerals in data/metric contexts use tabular figures */
 .tabular {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+  font-feature-settings: 'tnum' 1;
 }
 
 /* Single subtle radial glow, reserved for the hero canvas backdrop */
@@ -153,7 +153,21 @@ body {
     scroll-behavior: auto;
   }
 }
-
+.bg-surface-1 {
+  /* background-color: var(--surface-1); */
+  background: radial-gradient(
+    circle at 50% 410%,
+    color(srgb 0.18 0.19 0.22 / 0.3) 90%,
+    rgb(from rgb(47, 48, 55) r g b / calc(0.8)) 105%
+  );
+  box-shadow:
+    rgba(255, 255, 255, 0.14) 0px 0px 0px 0.5px inset,
+    rgba(255, 255, 255, 0.1) 0px 0.5px 0px 0px inset,
+    rgb(0, 0, 0) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0.32) 0px 1px 1.5px -0.5px,
+    rgba(0, 0, 0, 0.24) 0px 4px 6px -2px,
+    rgba(0, 0, 0, 0.16) 0px 6px 9px -3px;
+}
 /* ============================================================
    Slate & Rust — a scoped design system for /architecture.
    Deep navy anchors authority; a brick-red accent nods to

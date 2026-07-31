@@ -164,14 +164,48 @@ const JOURNEY: { phase: JPhase; title: string; surface: string; async?: string }
 
 /** Apps the launcher hands off to once the session is issued. */
 const LAUNCHER = [
-  { name: 'Ecoflow admin', port: 3003, hint: 'Master data console', icon: 'admin' as const },
+  {
+    name: 'Ecoflow admin',
+    port: 3003,
+    hint: 'Master data console',
+    icon: 'admin' as const,
+    target: 'admin' as const,
+  },
   {
     name: 'EcoFlow real time Dashboard',
     port: 3004,
     hint: 'Live event stream',
     icon: 'chart' as const,
+    target: 'dashboard' as const,
   },
 ];
+
+/* ----------------------- access-grant saga ------------------------- */
+
+type Target = 'admin' | 'dashboard';
+type TileStatus = 'idle' | 'pending' | 'granted' | 'denied';
+type AccessPhase = 'requesting' | 'awaiting' | 'responding' | 'resolved';
+
+const TARGET_META: Record<Target, { host: string; port: number; app: string }> = {
+  admin: { host: 'admin.walton', port: 3003, app: 'Ecoflow admin' },
+  dashboard: {
+    host: 'dashboard.walton',
+    port: 3004,
+    app: 'EcoFlow real time Dashboard',
+  },
+};
+
+/** Access-saga timing (ms) for each animated pass. */
+const ACCESS = { forwardMs: 2600, returnMs: 2600, resolveMs: 1200 } as const;
+
+/** A pinned event pushed into the terminal (session or access decision). */
+type PinSignal = {
+  app: string;
+  who: string;
+  detail: string;
+  tone: 'positive' | 'negative' | 'accent';
+  nonce: number;
+};
 
 /** A determinate progress line — scaleX only, no loop, no linear. */
 function ProgressLine({
@@ -252,24 +286,6 @@ function TickGlyph() {
       aria-hidden
     >
       <path d="M2.5 6.5 L5 9 L9.5 3.5" />
-    </svg>
-  );
-}
-
-function ChevronGlyph() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.25}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M4.5 2.5 L8 6 L4.5 9.5" />
     </svg>
   );
 }
@@ -389,14 +405,61 @@ function JourneyTerminal({ idx, reduced }: { idx: number; reduced: boolean }) {
   );
 }
 
-/** A launched satellite app, offered by the launcher after sign-in. */
-function AppTile({ app, reduced }: { app: (typeof LAUNCHER)[number]; reduced: boolean }) {
+const TILE_STATUS: Record<
+  TileStatus,
+  { label: string; text: string; dot: string; border: string } | null
+> = {
+  idle: null,
+  pending: {
+    label: 'pending',
+    text: 'text-accent',
+    dot: 'bg-accent',
+    border: 'border-border-strong',
+  },
+  granted: {
+    label: 'granted',
+    text: 'text-positive',
+    dot: 'bg-positive',
+    border: 'border-positive',
+  },
+  denied: {
+    label: 'denied',
+    text: 'text-negative',
+    dot: 'bg-negative',
+    border: 'border-negative',
+  },
+};
+
+/** A launcher app: request access, then reflect the granted/denied verdict. */
+function AppTile({
+  app,
+  reduced,
+  status,
+  busy,
+  onRequest,
+}: {
+  app: (typeof LAUNCHER)[number];
+  reduced: boolean;
+  status: TileStatus;
+  busy: boolean;
+  onRequest: (target: Target) => void;
+}) {
+  const meta = TILE_STATUS[status];
   const tile = (
-    <button
-      type="button"
-      className="flex w-full items-center gap-3 rounded-md border border-border bg-surface-2 p-3 text-left transition-colors duration-150 hover:border-border-strong"
+    <div
+      className={`flex w-full items-center gap-3 rounded-md border bg-surface-2 p-3 transition-colors duration-150 ${
+        meta?.border ?? 'border-border'
+      }`}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-border-strong bg-surface-3 text-text-secondary">
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border bg-surface-3 ${
+          status === 'granted'
+            ? 'border-positive text-positive'
+            : status === 'denied'
+              ? 'border-negative text-negative'
+              : 'border-border-strong text-text-secondary'
+        }`}
+      >
         <LauncherGlyph kind={app.icon} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
@@ -407,25 +470,41 @@ function AppTile({ app, reduced }: { app: (typeof LAUNCHER)[number]; reduced: bo
           localhost:{app.port} · {app.hint}
         </span>
       </span>
-      <span className="shrink-0 text-text-tertiary">
-        <ChevronGlyph />
-      </span>
-    </button>
+      {meta ? (
+        <span
+          className={`inline-flex shrink-0 items-center gap-1.5 font-mono text-mono ${meta.text}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+          {meta.label}
+        </span>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onRequest(app.target)}
+          className="shrink-0 rounded-sm border border-border bg-surface-1 px-2 py-1 font-mono text-mono text-text-secondary transition-colors duration-150 hover:border-border-strong hover:text-text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-text-secondary"
+        >
+          Request access
+        </button>
+      )}
+    </div>
   );
-  return reduced ? (
-    tile
-  ) : (
-    <motion.div variants={riseInSm}>{tile}</motion.div>
-  );
+  return reduced ? tile : <motion.div variants={riseInSm}>{tile}</motion.div>;
 }
 
 /** SSO sign-in — credentials → request journey → code → launcher. */
 function TenantSignIn({
   onConsumingChange,
   onAuthEvent,
+  tileStatus,
+  busy,
+  onRequest,
 }: {
   onConsumingChange: (consuming: boolean) => void;
   onAuthEvent: (email: string) => void;
+  tileStatus: Record<Target, TileStatus>;
+  busy: boolean;
+  onRequest: (target: Target) => void;
 }) {
   const reduced = useReducedMotion() ?? false;
   const [step, setStep] = useState<Step>('idle');
@@ -666,7 +745,14 @@ function TenantSignIn({
                 App launcher
               </span>
               {LAUNCHER.map(app => (
-                <AppTile key={app.name} app={app} reduced={reduced} />
+                <AppTile
+                  key={app.name}
+                  app={app}
+                  reduced={reduced}
+                  status={tileStatus[app.target]}
+                  busy={busy}
+                  onRequest={onRequest}
+                />
               ))}
             </motion.div>
           </motion.div>
@@ -700,6 +786,10 @@ const PORTS: [number, number][] = [
 ];
 
 const FUTURE_TRACE = 'M736 44 H794';
+
+/** Access-drain paths lit during a request: push -> Redpanda -> Worker. */
+const REDPANDA_D = 'M224 110 H560';
+const DRAIN = 'M620 86 C 660 82 660 72 700 68';
 
 /** Flow timing (seconds) — pulses sweep only while a request is served. */
 const FLOW = { cycle: 3.2, gap: 0.5, stagger: 0.5 } as const;
@@ -816,14 +906,19 @@ const SVG_TEXT = { fontFamily: 'var(--font-geist-mono)' } as const;
  */
 function PublishingMachine({
   active,
+  draining,
   reduced,
   portRef,
+  workerPortRef,
 }: {
   active: boolean;
+  draining: boolean;
   reduced: boolean;
   portRef: RefObject<HTMLSpanElement | null>;
+  workerPortRef: RefObject<HTMLSpanElement | null>;
 }) {
-  const showPulses = active && !reduced;
+  const showPublish = active && !reduced;
+  const showDrain = draining && !reduced;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
@@ -831,15 +926,20 @@ function PublishingMachine({
           Publishing · push machine
         </h3>
         <span className="tabular font-mono text-mono text-text-tertiary">
-          {active ? 'serving request…' : 'idle · no requests'}
+          {draining
+            ? 'draining events…'
+            : active
+              ? 'serving request…'
+              : 'idle · no requests'}
         </span>
       </div>
 
       <div className="pointer-events-none relative select-none" aria-hidden>
+        <span ref={portRef} className="absolute left-0" style={{ top: '50%' }} />
         <span
-          ref={portRef}
-          className="absolute left-0"
-          style={{ top: '50%' }}
+          ref={workerPortRef}
+          className="absolute"
+          style={{ left: '96.8%', top: '20%' }}
         />
         <svg
           viewBox="0 0 820 220"
@@ -857,6 +957,13 @@ function PublishingMachine({
               strokeWidth={1.25}
             />
           ))}
+          {/* Redpanda -> Worker drain link */}
+          <path
+            d={DRAIN}
+            fill="none"
+            stroke="var(--border-strong)"
+            strokeWidth={1.25}
+          />
           {/* future realtime-consumer link — dashed, awaiting wiring */}
           <path
             d={FUTURE_TRACE}
@@ -1001,11 +1108,18 @@ function PublishingMachine({
             writes
           </text>
 
-          {/* pulses */}
-          {showPulses &&
+          {/* publish pulses — snapshot fanning out to every consumer */}
+          {showPublish &&
             ROUTES.map((r, i) => (
-              <FlowPulse key={`pulse-${r.key}`} d={r.d} delay={i * FLOW.stagger} />
+              <FlowPulse key={`pub-${r.key}`} d={r.d} delay={i * FLOW.stagger} />
             ))}
+          {/* drain pulses — an access event: push -> Redpanda -> Worker */}
+          {showDrain && (
+            <>
+              <FlowPulse d={REDPANDA_D} delay={0} />
+              <FlowPulse d={DRAIN} delay={0.35} />
+            </>
+          )}
           {REALTIME_ACTIVE && !reduced && <FlowPulse d={FUTURE_TRACE} delay={0} />}
         </svg>
       </div>
@@ -1018,22 +1132,29 @@ type LogLine = {
   time: string;
   app: string;
   who: string;
-  ok: boolean;
   detail: string;
-  highlight?: boolean;
+  tone: PinSignal['tone'];
 };
+
+const toneClass = (tone: LogLine['tone']) =>
+  tone === 'positive'
+    ? 'text-positive'
+    : tone === 'negative'
+      ? 'text-negative'
+      : 'text-accent';
 
 /**
  * The Redpanda-fed event terminal (code / code-bar chrome). Continuously
- * appends synthetic auth traffic, and — when `live` changes — lands the
- * real tenantWeb sign-in as a highlighted line correlated to the flow.
+ * appends synthetic traffic, and — when `pin` changes — lands a real
+ * event (sign-in / access decision) in a pinned strip that never rotates
+ * out of the log window.
  */
 function EventTerminal({
   reduced,
-  live,
+  pin,
 }: {
   reduced: boolean;
-  live: { email: string; nonce: number } | null;
+  pin: PinSignal | null;
 }) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [pinned, setPinned] = useState<LogLine[]>([]);
@@ -1045,11 +1166,11 @@ function EventTerminal({
     (over?: {
       app: string;
       who: string;
-      ok: boolean;
-      highlight: boolean;
+      detail: string;
+      tone: LogLine['tone'];
     }): LogLine => {
       const src = LOG_SOURCES[Math.floor(Math.random() * LOG_SOURCES.length)];
-      const ok = over?.ok ?? Math.random() > 0.28;
+      const ok = Math.random() > 0.28;
       clock.current += 2 + Math.floor(Math.random() * 37);
       const t = clock.current;
       const pad = (n: number) => String(n).padStart(2, '0');
@@ -1061,11 +1182,12 @@ function EventTerminal({
         time: `${pad(Math.floor(t / 3600) % 24)}:${pad(Math.floor(t / 60) % 60)}:${pad(t % 60)}`,
         app: over?.app ?? src.app,
         who: over?.who ?? src.who,
-        ok,
-        detail: ok
-          ? `session sess_${sess} issued`
-          : `denied · ${DENY[Math.floor(Math.random() * DENY.length)]}`,
-        highlight: over?.highlight,
+        detail:
+          over?.detail ??
+          (ok
+            ? `session sess_${sess} issued`
+            : `denied · ${DENY[Math.floor(Math.random() * DENY.length)]}`),
+        tone: over?.tone ?? (ok ? 'positive' : 'negative'),
       };
     },
     [],
@@ -1087,25 +1209,24 @@ function EventTerminal({
     };
   }, [reduced, buildLine]);
 
-  // live correlation — the real tenantWeb sign-in is pinned so it never
-  // rotates out of the log window (keep the few most recent sessions)
+  // real events are pinned so they never rotate out (keep the last few)
   useEffect(() => {
-    if (!live) return;
+    if (!pin) return;
     const t = setTimeout(
       () =>
         setPinned(prev => [
           ...prev.slice(-2),
           buildLine({
-            app: 'tenantWeb',
-            who: live.email,
-            ok: true,
-            highlight: true,
+            app: pin.app,
+            who: pin.who,
+            detail: pin.detail,
+            tone: pin.tone,
           }),
         ]),
       0,
     );
     return () => clearTimeout(t);
-  }, [live, buildLine]);
+  }, [pin, buildLine]);
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -1135,7 +1256,7 @@ function EventTerminal({
         </span>
       </div>
 
-      {/* pinned — the real sign-in, held so it never rotates out */}
+      {/* pinned — real events, held so they never rotate out */}
       {pinned.length > 0 && (
         <div
           className="border-b border-border px-3 py-2 font-mono text-mono"
@@ -1143,7 +1264,7 @@ function EventTerminal({
         >
           <div className="mb-1 flex items-center gap-2 text-text-tertiary">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            <span>pinned · this session</span>
+            <span>pinned · recent events</span>
           </div>
           {pinned.map(l => (
             <div
@@ -1151,10 +1272,9 @@ function EventTerminal({
               className="flex items-baseline gap-2 whitespace-nowrap"
             >
               <span className="shrink-0 text-text-tertiary">{l.time}</span>
-              <span className="shrink-0 text-text-tertiary">auth.attempt</span>
               <span className="shrink-0 text-accent">{l.app}</span>
               <span className="shrink-0 text-text-tertiary">{l.who}</span>
-              <span className="text-positive">{l.detail}</span>
+              <span className={toneClass(l.tone)}>{l.detail}</span>
             </div>
           ))}
         </div>
@@ -1168,12 +1288,9 @@ function EventTerminal({
         {lines.map(l => (
           <div key={l.id} className="flex items-baseline gap-2 whitespace-nowrap">
             <span className="shrink-0 text-text-tertiary">{l.time}</span>
-            <span className="shrink-0 text-text-tertiary">auth.attempt</span>
             <span className="shrink-0 text-text-secondary">{l.app}</span>
             <span className="shrink-0 text-text-tertiary">{l.who}</span>
-            <span className={l.ok ? 'text-positive' : 'text-negative'}>
-              {l.detail}
-            </span>
+            <span className={toneClass(l.tone)}>{l.detail}</span>
           </div>
         ))}
       </div>
@@ -1185,38 +1302,52 @@ function EventTerminal({
 function BackendServer({
   reduced,
   active,
+  draining,
   portRef,
-  live,
+  workerPortRef,
+  pin,
 }: {
   reduced: boolean;
   active: boolean;
+  draining: boolean;
   portRef: RefObject<HTMLSpanElement | null>;
-  live: { email: string; nonce: number } | null;
+  workerPortRef: RefObject<HTMLSpanElement | null>;
+  pin: PinSignal | null;
 }) {
   return (
     <ServerContainer host="api.walton" port={3002}>
-      <PublishingMachine active={active} reduced={reduced} portRef={portRef} />
-      <EventTerminal reduced={reduced} live={live} />
+      <PublishingMachine
+        active={active}
+        draining={draining}
+        reduced={reduced}
+        portRef={portRef}
+        workerPortRef={workerPortRef}
+      />
+      <EventTerminal reduced={reduced} pin={pin} />
     </ServerContainer>
   );
 }
 
 /**
- * The cross-layout wire from the tenantWeb window down to the push
- * machine's left port. Measured relative to the stage and redrawn on
- * resize; a pulse flows portal → server while a request is in flight.
+ * A cross-layout wire between two elements, measured relative to the
+ * stage and redrawn on resize. `flow` runs a pulse along it: 'fwd'
+ * from→to, 'rev' to→from, null for a static (or hidden) wire.
  */
-function ConnectorOverlay({
+function Wire({
   stageRef,
-  portalRef,
-  portRef,
-  active,
+  fromRef,
+  toRef,
+  fromSide,
+  toSide,
+  flow,
   reduced,
 }: {
   stageRef: RefObject<HTMLDivElement | null>;
-  portalRef: RefObject<HTMLDivElement | null>;
-  portRef: RefObject<HTMLSpanElement | null>;
-  active: boolean;
+  fromRef: RefObject<HTMLElement | null>;
+  toRef: RefObject<HTMLElement | null> | null;
+  fromSide: 'center' | 'bottom';
+  toSide: 'center' | 'bottom';
+  flow: 'fwd' | 'rev' | null;
   reduced: boolean;
 }) {
   const [d, setD] = useState<string | null>(null);
@@ -1224,18 +1355,24 @@ function ConnectorOverlay({
   useEffect(() => {
     const compute = () => {
       const stage = stageRef.current;
-      const portal = portalRef.current;
-      const port = portRef.current;
-      if (!stage || !portal || !port) return;
+      const from = fromRef.current;
+      const to = toRef?.current;
+      if (!stage || !from || !to) {
+        setD(null);
+        return;
+      }
       const s = stage.getBoundingClientRect();
-      const p = portal.getBoundingClientRect();
-      const q = port.getBoundingClientRect();
-      const sx = p.left + p.width / 2 - s.left;
-      const sy = p.bottom - s.top;
-      const ex = q.left + q.width / 2 - s.left;
-      const ey = q.top + q.height / 2 - s.top;
-      const my = sy + (ey - sy) / 2;
-      setD(`M ${sx} ${sy} C ${sx} ${my}, ${ex} ${my}, ${ex} ${ey}`);
+      const point = (el: HTMLElement, side: 'center' | 'bottom') => {
+        const r = el.getBoundingClientRect();
+        return [
+          r.left + r.width / 2 - s.left,
+          (side === 'bottom' ? r.bottom : r.top + r.height / 2) - s.top,
+        ] as const;
+      };
+      const [x0, y0] = point(from, fromSide);
+      const [x1, y1] = point(to, toSide);
+      const my = (y0 + y1) / 2;
+      setD(`M ${x0} ${y0} C ${x0} ${my}, ${x1} ${my}, ${x1} ${y1}`);
     };
     compute();
     const settle = setTimeout(compute, 500); // after the entrance settles
@@ -1247,7 +1384,7 @@ function ConnectorOverlay({
       ro.disconnect();
       window.removeEventListener('resize', compute);
     };
-  }, [stageRef, portalRef, portRef]);
+  }, [stageRef, fromRef, toRef, fromSide, toSide]);
 
   if (!d) return null;
   return (
@@ -1262,7 +1399,7 @@ function ConnectorOverlay({
         strokeWidth={1.5}
         strokeDasharray="4 5"
       />
-      {active && !reduced && (
+      {flow && !reduced && (
         <motion.path
           d={d}
           fill="none"
@@ -1274,8 +1411,10 @@ function ConnectorOverlay({
             strokeDasharray: '0.1 1',
             filter: 'drop-shadow(0 0 5px var(--accent))',
           }}
-          initial={{ strokeDashoffset: 0.1 }}
-          animate={{ strokeDashoffset: [0.1, -1] }}
+          initial={{ strokeDashoffset: flow === 'fwd' ? 0.1 : -1 }}
+          animate={{
+            strokeDashoffset: flow === 'fwd' ? [0.1, -1] : [-1, 0.1],
+          }}
           transition={{
             duration: 1.8,
             ease: ease.inOut,
@@ -1285,6 +1424,95 @@ function ConnectorOverlay({
         />
       )}
     </svg>
+  );
+}
+
+/** The Accept/Reject card a target consumer shows for an access request. */
+function NotificationCard({
+  req,
+  onDecide,
+  reduced,
+}: {
+  req: { fromApp: string; targetApp: string; eventId: string };
+  onDecide: (d: 'granted' | 'denied') => void;
+  reduced: boolean;
+}) {
+  const body = (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+        <span className="font-mono text-mono uppercase tracking-wider text-text-tertiary">
+          access request
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-small font-medium text-text-primary">
+          {req.fromApp} requests access
+        </span>
+        <span className="tabular truncate font-mono text-mono text-text-tertiary">
+          evt_{req.eventId} · {req.targetApp}
+        </span>
+      </div>
+      <div className="mt-auto flex gap-2">
+        <button
+          type="button"
+          onClick={() => onDecide('denied')}
+          className="flex-1 rounded-sm border border-border bg-surface-1 px-3 py-2 text-small text-text-secondary transition-colors duration-150 hover:border-negative hover:text-negative"
+        >
+          Reject
+        </button>
+        <button
+          type="button"
+          onClick={() => onDecide('granted')}
+          className="flex-1 rounded-sm bg-accent px-3 py-2 text-small font-medium text-text-primary transition-colors duration-150 hover:bg-accent-muted"
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  );
+  return reduced ? (
+    body
+  ) : (
+    <motion.div
+      variants={settleIn}
+      initial="hidden"
+      animate="show"
+      className="h-full"
+    >
+      {body}
+    </motion.div>
+  );
+}
+
+/** A read-only consumer window that pops a request card when targeted. */
+function ConsumerWindow({
+  host,
+  port,
+  role,
+  title,
+  note,
+  awaiting,
+  onDecide,
+  reduced,
+}: {
+  host: string;
+  port: number;
+  role: string;
+  title: string;
+  note: string;
+  awaiting: { fromApp: string; targetApp: string; eventId: string } | null;
+  onDecide: (d: 'granted' | 'denied') => void;
+  reduced: boolean;
+}) {
+  return (
+    <AppWindow host={host} port={port} status="live">
+      {awaiting ? (
+        <NotificationCard req={awaiting} onDecide={onDecide} reduced={reduced} />
+      ) : (
+        <SurfaceHeader role={role} title={title} note={note} status="live" />
+      )}
+    </AppWindow>
   );
 }
 
@@ -1299,19 +1527,146 @@ export default function ArchitectureConsumers() {
   // pulse lights up only then — one shared "a request is being served"
   const [consuming, setConsuming] = useState(false);
 
-  // the real sign-in, relayed to the event terminal as a highlighted line
-  const [liveAuth, setLiveAuth] = useState<{
-    email: string;
-    nonce: number;
+  // events pinned into the terminal (sign-in + access decisions)
+  const [pin, setPin] = useState<PinSignal | null>(null);
+  const emitPin = useCallback(
+    (p: Omit<PinSignal, 'nonce'>) =>
+      setPin(prev => ({ ...p, nonce: (prev?.nonce ?? 0) + 1 })),
+    [],
+  );
+  const emitAuth = useCallback(
+    (email: string) =>
+      emitPin({
+        app: 'tenantWeb',
+        who: email,
+        detail: 'session issued',
+        tone: 'positive',
+      }),
+    [emitPin],
+  );
+
+  // access-grant saga: request -> await consumer -> respond -> resolve
+  const [tileStatus, setTileStatus] = useState<Record<Target, TileStatus>>({
+    admin: 'idle',
+    dashboard: 'idle',
+  });
+  const [saga, setSaga] = useState<{
+    target: Target;
+    phase: AccessPhase;
+    decision?: 'granted' | 'denied';
+    eventId: string;
   } | null>(null);
-  const emitAuth = useCallback((email: string) => {
-    setLiveAuth(prev => ({ email, nonce: (prev?.nonce ?? 0) + 1 }));
+  const sagaRef = useRef(saga);
+  useEffect(() => {
+    sagaRef.current = saga;
+  }, [saga]);
+
+  const request = useCallback(
+    (target: Target) => {
+      if (sagaRef.current) return; // one saga at a time
+      const eventId = Math.floor(Math.random() * 0xffff)
+        .toString(16)
+        .padStart(4, '0');
+      sagaRef.current = { target, phase: 'requesting', eventId };
+      setTileStatus(s => ({ ...s, [target]: 'pending' }));
+      setSaga({ target, phase: 'requesting', eventId });
+      const m = TARGET_META[target];
+      emitPin({
+        app: 'tenantWeb',
+        who: `→ ${m.host}:${m.port}`,
+        detail: `access.requested evt_${eventId}`,
+        tone: 'accent',
+      });
+    },
+    [emitPin],
+  );
+
+  const decide = useCallback((decision: 'granted' | 'denied') => {
+    setSaga(s =>
+      s && s.phase === 'awaiting' ? { ...s, phase: 'responding', decision } : s,
+    );
   }, []);
 
-  // refs for the cross-layout wire: tenantWeb window → push-machine port
+  // phase-driven timers: forward pass -> await; response pass -> resolve
+  useEffect(() => {
+    if (!saga) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    if (saga.phase === 'requesting') {
+      timers.push(
+        setTimeout(
+          () =>
+            setSaga(s =>
+              s && s.phase === 'requesting' ? { ...s, phase: 'awaiting' } : s,
+            ),
+          ACCESS.forwardMs,
+        ),
+      );
+    } else if (saga.phase === 'responding') {
+      const m = TARGET_META[saga.target];
+      timers.push(
+        setTimeout(
+          () =>
+            emitPin({
+              app: m.host,
+              who: 'tenantWeb',
+              detail: `access.${saga.decision} evt_${saga.eventId}`,
+              tone: saga.decision === 'granted' ? 'positive' : 'negative',
+            }),
+          0,
+        ),
+      );
+      timers.push(
+        setTimeout(() => {
+          setTileStatus(st => ({ ...st, [saga.target]: saga.decision! }));
+          setSaga(s => (s ? { ...s, phase: 'resolved' } : s));
+        }, ACCESS.returnMs),
+      );
+    } else if (saga.phase === 'resolved') {
+      timers.push(setTimeout(() => setSaga(null), ACCESS.resolveMs));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [saga, emitPin]);
+
+  // refs for the cross-layout wires
   const stageRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
   const portRef = useRef<HTMLSpanElement>(null);
+  const workerPortRef = useRef<HTMLSpanElement>(null);
+  const adminRef = useRef<HTMLDivElement>(null);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  // derived backend + wire state
+  const backendDraining =
+    !!saga && (saga.phase === 'requesting' || saga.phase === 'responding');
+  const portalFlow: 'fwd' | 'rev' | null =
+    consuming || saga?.phase === 'requesting'
+      ? 'fwd'
+      : saga?.phase === 'responding'
+        ? 'rev'
+        : null;
+  const workerTarget: Target | null =
+    saga && saga.phase !== 'resolved' ? saga.target : null;
+  const workerFlow: 'fwd' | 'rev' | null =
+    saga?.phase === 'requesting'
+      ? 'fwd'
+      : saga?.phase === 'responding'
+        ? 'rev'
+        : null;
+  const targetRef =
+    workerTarget === 'admin'
+      ? adminRef
+      : workerTarget === 'dashboard'
+        ? dashboardRef
+        : null;
+  const awaitingFor = (t: Target) =>
+    saga?.phase === 'awaiting' && saga.target === t
+      ? {
+          fromApp: 'tenantWeb',
+          targetApp: `${TARGET_META[t].host}:${TARGET_META[t].port}`,
+          eventId: saga.eventId,
+        }
+      : null;
+  const busy = !!saga;
 
   return (
     <section
@@ -1354,6 +1709,9 @@ export default function ArchitectureConsumers() {
                   <TenantSignIn
                     onConsumingChange={setConsuming}
                     onAuthEvent={emitAuth}
+                    tileStatus={tileStatus}
+                    busy={busy}
+                    onRequest={request}
                   />
                 </AppWindow>
               </motion.div>
@@ -1369,26 +1727,30 @@ export default function ArchitectureConsumers() {
                 </AppWindow>
               </motion.div>
 
-              <motion.div variants={item}>
-                <AppWindow host="admin.walton" port={3003} status="live">
-                  <SurfaceHeader
-                    role="Master data console"
-                    title="Ecoflow admin"
-                    note="Authors product master"
-                    status="live"
-                  />
-                </AppWindow>
+              <motion.div ref={adminRef} variants={item}>
+                <ConsumerWindow
+                  host="admin.walton"
+                  port={3003}
+                  role="Master data console"
+                  title="Ecoflow admin"
+                  note="Authors product master"
+                  awaiting={awaitingFor('admin')}
+                  onDecide={decide}
+                  reduced={reduced ?? false}
+                />
               </motion.div>
 
-              <motion.div variants={item}>
-                <AppWindow host="dashboard.walton" port={3004} status="live">
-                  <SurfaceHeader
-                    role="Realtime analytics"
-                    title="EcoFlow real time Dashboard"
-                    note="Streams sale.completed.v1"
-                    status="live"
-                  />
-                </AppWindow>
+              <motion.div ref={dashboardRef} variants={item}>
+                <ConsumerWindow
+                  host="dashboard.walton"
+                  port={3004}
+                  role="Realtime analytics"
+                  title="EcoFlow real time Dashboard"
+                  note="Streams sale.completed.v1"
+                  awaiting={awaitingFor('dashboard')}
+                  onDecide={decide}
+                  reduced={reduced ?? false}
+                />
               </motion.div>
             </div>
 
@@ -1396,16 +1758,30 @@ export default function ArchitectureConsumers() {
               <BackendServer
                 reduced={reduced ?? false}
                 active={consuming}
+                draining={backendDraining}
                 portRef={portRef}
-                live={liveAuth}
+                workerPortRef={workerPortRef}
+                pin={pin}
               />
             </motion.div>
 
-            <ConnectorOverlay
+            {/* portal <-> push machine, and worker <-> target consumer */}
+            <Wire
               stageRef={stageRef}
-              portalRef={portalRef}
-              portRef={portRef}
-              active={consuming}
+              fromRef={portalRef}
+              toRef={portRef}
+              fromSide="bottom"
+              toSide="center"
+              flow={portalFlow}
+              reduced={reduced ?? false}
+            />
+            <Wire
+              stageRef={stageRef}
+              fromRef={workerPortRef}
+              toRef={targetRef}
+              fromSide="center"
+              toSide="bottom"
+              flow={workerFlow}
               reduced={reduced ?? false}
             />
           </div>
