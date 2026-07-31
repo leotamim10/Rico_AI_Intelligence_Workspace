@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import dynamic from "next/dynamic";
+import { motion } from 'framer-motion';
+import dynamic from 'next/dynamic';
 
-import { StatChip } from "@/components/ui/StatChip";
-import { duration, ease } from "@/lib/motion/easings";
-import { riseIn, staggerParent } from "@/lib/motion/variants";
-import { usePinnedParticleProgress } from "@/lib/motion/usePinnedParticleProgress";
+import { StatChip } from '@/components/ui/StatChip';
+import { duration, ease } from '@/lib/motion/easings';
+import { riseIn, staggerParent } from '@/lib/motion/variants';
+import { usePinnedParticleProgress } from '@/lib/motion/usePinnedParticleProgress';
 
-const Scene = dynamic(() => import("@/components/three/Scene"), { ssr: false });
+const Scene = dynamic(() => import('@/components/three/Scene'), { ssr: false });
 
 export function Hero() {
   // Scroll scrubs the particle field from chaos (0) to structured (1).
@@ -33,7 +33,10 @@ export function Hero() {
     >
       <div className="sticky top-0 flex h-dvh flex-col items-center justify-center overflow-hidden">
         {/* Single subtle radial glow behind the field. */}
-        <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden />
+        <div
+          className="hero-glow pointer-events-none absolute inset-0"
+          aria-hidden
+        />
 
         {/* Particle field — edges feathered so the canvas dissolves into
             the background instead of cutting off with a hard rectangle. */}
@@ -41,9 +44,9 @@ export function Hero() {
           className="absolute inset-0"
           style={{
             WebkitMaskImage:
-              "linear-gradient(to bottom, transparent 0%, black 12%, black 80%, transparent 100%)",
+              'linear-gradient(to bottom, transparent 0%, black 12%, black 80%, transparent 100%)',
             maskImage:
-              "linear-gradient(to bottom, transparent 0%, black 12%, black 80%, transparent 100%)",
+              'linear-gradient(to bottom, transparent 0%, black 12%, black 80%, transparent 100%)',
           }}
         >
           <Scene
@@ -101,7 +104,11 @@ export function Hero() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.9, duration: duration.element, ease: ease.out }}
+            transition={{
+              delay: 0.9,
+              duration: duration.element,
+              ease: ease.out,
+            }}
             className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2"
             aria-hidden
           >

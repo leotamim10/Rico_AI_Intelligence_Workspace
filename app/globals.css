@@ -26,6 +26,9 @@
   --positive: #3fb984;
   --negative: #e5615b;
 
+  /* Claude display colour — used for ultra-bold serif headings */
+  --claude: #d97757;
+
   /* Radius */
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -50,11 +53,13 @@
 
   --color-positive: var(--positive);
   --color-negative: var(--negative);
+  --color-claude: var(--claude);
 
   /* Fonts — wired to next/font variables in layout.tsx */
   --font-sans: var(--font-inter);
   --font-display: var(--font-geist);
   --font-mono: var(--font-geist-mono);
+  --font-claude: var(--font-fraunces);
 
   /* Radius */
   --radius-sm: var(--radius-sm);
@@ -147,4 +152,38 @@ body {
   html {
     scroll-behavior: auto;
   }
+}
+
+/* ============================================================
+   Slate & Rust — a scoped design system for /architecture.
+   Deep navy anchors authority; a brick-red accent nods to
+   roofing craft; ultra-bold serif headings carry the Claude
+   colour. Every token below overrides the base scale for this
+   subtree only, so the rest of the app keeps its original theme.
+   Because the theme utilities inline `var(--token)`, these
+   overrides cascade to every child utility automatically.
+   ============================================================ */
+.theme-slate-rust {
+  /* Colour — deep navy, cool light text */
+  --bg: #0a0f1c;
+  --surface-1: #0f1524;
+  --surface-2: #161e30;
+  --surface-3: #212c44;
+  --border: #26314b;
+  --border-strong: #3a4a6e;
+
+  --text-primary: #eef1f7;
+  --text-secondary: #a6b1c7;
+  --text-tertiary: #808da6; /* AA on the navy bg for 13px labels */
+
+  /* Accent — brick red / terracotta */
+  --accent: #c25a3b;
+  --accent-muted: #7d3925;
+  --accent-glow: rgba(194, 90, 59, 0.22);
+
+  --positive: #3fb98a;
+  --negative: #e0664f;
+
+  /* Claude clay — warmer than the brick accent, for display text */
+  --claude: #db7b5a;
 }
