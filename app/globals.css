@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ============================================================
    Design tokens — single source of truth.
@@ -26,6 +26,9 @@
   --positive: #3fb984;
   --negative: #e5615b;
 
+  /* Claude display colour — used for ultra-bold serif headings */
+  --claude: #d97757;
+
   /* Radius */
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -50,11 +53,13 @@
 
   --color-positive: var(--positive);
   --color-negative: var(--negative);
+  --color-claude: var(--claude);
 
   /* Fonts — wired to next/font variables in layout.tsx */
   --font-sans: var(--font-inter);
   --font-display: var(--font-geist);
   --font-mono: var(--font-geist-mono);
+  --font-claude: var(--font-fraunces);
 
   /* Radius */
   --radius-sm: var(--radius-sm);
@@ -119,7 +124,7 @@ body {
 /* Numerals in data/metric contexts use tabular figures */
 .tabular {
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+  font-feature-settings: 'tnum' 1;
 }
 
 /* Single subtle radial glow, reserved for the hero canvas backdrop */
@@ -147,4 +152,52 @@ body {
   html {
     scroll-behavior: auto;
   }
+}
+.bg-surface-1 {
+  /* background-color: var(--surface-1); */
+  background: radial-gradient(
+    circle at 50% 410%,
+    color(srgb 0.18 0.19 0.22 / 0.3) 90%,
+    rgb(from rgb(47, 48, 55) r g b / calc(0.8)) 105%
+  );
+  box-shadow:
+    rgba(255, 255, 255, 0.14) 0px 0px 0px 0.5px inset,
+    rgba(255, 255, 255, 0.1) 0px 0.5px 0px 0px inset,
+    rgb(0, 0, 0) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0.32) 0px 1px 1.5px -0.5px,
+    rgba(0, 0, 0, 0.24) 0px 4px 6px -2px,
+    rgba(0, 0, 0, 0.16) 0px 6px 9px -3px;
+}
+/* ============================================================
+   Slate & Rust — a scoped design system for /architecture.
+   Deep navy anchors authority; a brick-red accent nods to
+   roofing craft; ultra-bold serif headings carry the Claude
+   colour. Every token below overrides the base scale for this
+   subtree only, so the rest of the app keeps its original theme.
+   Because the theme utilities inline `var(--token)`, these
+   overrides cascade to every child utility automatically.
+   ============================================================ */
+.theme-slate-rust {
+  /* Colour — deep navy, cool light text */
+  --bg: #0a0f1c;
+  --surface-1: #0f1524;
+  --surface-2: #161e30;
+  --surface-3: #212c44;
+  --border: #26314b;
+  --border-strong: #3a4a6e;
+
+  --text-primary: #eef1f7;
+  --text-secondary: #a6b1c7;
+  --text-tertiary: #808da6; /* AA on the navy bg for 13px labels */
+
+  /* Accent — brick red / terracotta */
+  --accent: #c25a3b;
+  --accent-muted: #7d3925;
+  --accent-glow: rgba(194, 90, 59, 0.22);
+
+  --positive: #3fb98a;
+  --negative: #e0664f;
+
+  /* Claude clay — warmer than the brick accent, for display text */
+  --claude: #db7b5a;
 }

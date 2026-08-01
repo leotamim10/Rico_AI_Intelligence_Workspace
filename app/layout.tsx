@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Inter, Geist_Mono } from "next/font/google";
+import { Geist, Inter, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -25,6 +25,15 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+// "Claude" display serif — the Slate & Rust system sets ultra-bold
+// headings in this (a freely-available stand-in for Copernicus). Loaded
+// as a variable font so weights up to 900 are available.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Xai — Intelligence Workspace",
   description:
@@ -39,7 +48,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geist.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${geist.variable} ${geistMono.variable} ${fraunces.variable}`}
     >
       <body>{children}</body>
     </html>
