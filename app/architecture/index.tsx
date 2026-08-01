@@ -193,6 +193,50 @@ const BORN_STEP_MS = 420;
 /** The two consumers that read the published snapshot from Redis. */
 type Reader = 'centralWeb' | 'dashboard';
 
+/* ----------------- external producers · POS / Walpack -------------- */
+
+type Producer = 'pos' | 'walpack';
+
+type Product = {
+  name: string;
+  stock: number;
+  sold: number;
+  received: string;
+  stockAge: string;
+  lastSold: string;
+  transit: string;
+};
+
+/** Deterministic seed inventory (no random at init — SSR-safe). */
+const INITIAL_INVENTORY: Product[] = [
+  { name: 'Desktop PC', stock: 84, sold: 316, received: '2026-06-08', stockAge: '54d', lastSold: '2026-08-01 11:42', transit: 'FAC-02 → WH-CTG-01 → PLZ-041' },
+  { name: 'RAM 16GB', stock: 512, sold: 1290, received: '2026-06-21', stockAge: '41d', lastSold: '2026-08-01 12:03', transit: 'FAC-01 → WH-DHK-02 → PLZ-118' },
+  { name: 'Monitor 27"', stock: 143, sold: 402, received: '2026-05-30', stockAge: '63d', lastSold: '2026-07-31 18:20', transit: 'FAC-02 → WH-CTG-01 → PLZ-041' },
+  { name: 'LED TV 43"', stock: 67, sold: 221, received: '2026-07-02', stockAge: '30d', lastSold: '2026-08-01 09:58', transit: 'FAC-03 → WH-DHK-02 → PLZ-206' },
+  { name: 'Router AX', stock: 289, sold: 610, received: '2026-06-15', stockAge: '47d', lastSold: '2026-07-30 16:11', transit: 'FAC-01 → WH-CTG-01 → PLZ-041' },
+  { name: 'SSD 1TB', stock: 178, sold: 533, received: '2026-06-27', stockAge: '35d', lastSold: '2026-08-01 10:37', transit: 'FAC-01 → WH-DHK-02 → PLZ-118' },
+];
+
+const PRODUCER_META: Record<
+  Producer,
+  { label: string; app: string; source: string; event: string; title: string }
+> = {
+  pos: {
+    label: 'POS sell',
+    app: 'pos.plaza',
+    source: 'PLZ-041',
+    event: 'sale.completed',
+    title: 'POS · sale',
+  },
+  walpack: {
+    label: 'Walpack transport',
+    app: 'walpack',
+    source: 'batch B-7742',
+    event: 'material.received',
+    title: 'Walpack · material received',
+  },
+};
+
 /** A determinate progress line — scaleX only, no loop, no linear. */
 function ProgressLine({
   seconds,
@@ -1754,6 +1798,287 @@ function AdminConsole({
   );
 }
 
+function ProducerGlyph({ kind }: { kind: Producer }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.25,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  };
+  if (kind === 'walpack') {
+    return (
+      <svg {...common}>
+        <path d="M1.5 4 H9 V11 H1.5 Z M9 6.5 H12.5 L14.5 9 V11 H9 Z" />
+        <circle cx="4" cy="12.5" r="1.2" fill="var(--surface-2)" />
+        <circle cx="11.5" cy="12.5" r="1.2" fill="var(--surface-2)" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M4 2 H12 V14 L10.5 13 L9 14 L7 13 L5.5 14 L4 13 Z" />
+      <path d="M6 5 H10 M6 8 H10 M6 11 H8.5" />
+    </svg>
+  );
+}
+
+/** The printed receipt (POS) / manifest slip (Walpack) that prints out. */
+function ReceiptPrint({
+  producer,
+  product,
+  qty,
+  eventId,
+  reduced,
+}: {
+  producer: Producer;
+  product: string;
+  qty: number;
+  eventId: string;
+  reduced: boolean;
+}) {
+  const m = PRODUCER_META[producer];
+  const card = (
+    <div className="w-56 rounded-sm border border-border-strong bg-surface-2 p-3 font-mono text-mono shadow-lg">
+      <div className="mb-2 flex items-center justify-between border-b border-dashed border-border pb-2">
+        <span className="text-text-primary">{m.title}</span>
+        <span className="text-text-tertiary">{m.source}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-2 py-0.5">
+        <span className="min-w-0 flex-1 truncate text-text-secondary">
+          {qty} × {product}
+        </span>
+        <span className={producer === 'pos' ? 'text-negative' : 'text-positive'}>
+          {producer === 'pos' ? `−${qty}` : `+${qty}`}
+        </span>
+      </div>
+      <div className="mt-2 border-t border-dashed border-border pt-2 text-text-tertiary">
+        {m.event} evt_{eventId}
+      </div>
+    </div>
+  );
+  return reduced ? (
+    card
+  ) : (
+    <motion.div variants={settleIn} initial="hidden" animate="show">
+      {card}
+    </motion.div>
+  );
+}
+
+/** External event producers footer: POS sell + Walpack transport. */
+function ProducerBar({
+  onProduce,
+  busy,
+}: {
+  onProduce: (kind: Producer) => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-1 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-text-tertiary" />
+        <span className="font-mono text-mono uppercase tracking-wider text-text-tertiary">
+          external event producers
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {(['pos', 'walpack'] as Producer[]).map(kind => (
+          <button
+            key={kind}
+            type="button"
+            disabled={busy}
+            onClick={() => onProduce(kind)}
+            className="inline-flex items-center gap-2 rounded-sm border border-border bg-surface-2 px-3 py-2 text-small text-text-secondary transition-colors duration-150 hover:border-border-strong hover:text-text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-text-secondary"
+          >
+            <ProducerGlyph kind={kind} />
+            {PRODUCER_META[kind].label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** One inventory row; flashes with the signed delta when a producer hits it. */
+function InventoryRow({
+  product,
+  flash,
+  onHistory,
+}: {
+  product: Product;
+  flash: { kind: Producer; qty: number } | null;
+  onHistory: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-sm px-1.5 py-1.5 transition-colors duration-150"
+      style={flash ? { background: 'var(--accent-glow)' } : undefined}
+    >
+      <span className="min-w-0 flex-1 truncate text-small text-text-primary">
+        {product.name}
+      </span>
+      <span className="tabular shrink-0 font-mono text-mono text-text-secondary">
+        {product.stock}
+      </span>
+      {flash && (
+        <span
+          className={`tabular shrink-0 font-mono text-mono ${
+            flash.kind === 'pos' ? 'text-negative' : 'text-positive'
+          }`}
+        >
+          {flash.kind === 'pos' ? '−' : '+'}
+          {flash.qty}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onHistory}
+        className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-mono text-text-tertiary transition-colors duration-150 hover:border-border-strong hover:text-text-secondary"
+      >
+        history
+      </button>
+    </div>
+  );
+}
+
+/** The per-product history panel. */
+function HistoryPanel({
+  product,
+  onBack,
+  reduced,
+}: {
+  product: Product;
+  onBack: () => void;
+  reduced: boolean;
+}) {
+  const rows: [string, string][] = [
+    ['Received', product.received],
+    ['Stock age', product.stockAge],
+    ['Last sold', product.lastSold],
+    ['In stock', String(product.stock)],
+    ['Total sold', String(product.sold)],
+    ['Transit', product.transit],
+  ];
+  const body = (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-mono text-text-tertiary transition-colors duration-150 hover:border-border-strong hover:text-text-secondary"
+        >
+          ← back
+        </button>
+        <span className="min-w-0 flex-1 truncate text-small font-medium text-text-primary">
+          {product.name}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 overflow-auto font-mono text-mono">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-2">
+            <span className="shrink-0 text-text-tertiary">{k}</span>
+            <span className="min-w-0 truncate text-right text-text-secondary">
+              {v}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return reduced ? (
+    body
+  ) : (
+    <motion.div
+      variants={swap}
+      initial="enter"
+      animate="center"
+      className="h-full"
+    >
+      {body}
+    </motion.div>
+  );
+}
+
+/** dashboard.walton — the realtime sales/inventory list fed by POS/Walpack. */
+function DashboardWindow({
+  inventory,
+  flash,
+  awaiting,
+  onDecide,
+  published,
+  onRead,
+  reading,
+  reduced,
+}: {
+  inventory: Product[];
+  flash: { idx: number; kind: Producer; qty: number } | null;
+  awaiting: { fromApp: string; targetApp: string; eventId: string } | null;
+  onDecide: (d: 'granted' | 'denied') => void;
+  published: boolean;
+  onRead: () => void;
+  reading: boolean;
+  reduced: boolean;
+}) {
+  const [historyIdx, setHistoryIdx] = useState<number | null>(null);
+  return (
+    <AppWindow host="dashboard.walton" port={3004} status="live">
+      {awaiting ? (
+        <NotificationCard req={awaiting} onDecide={onDecide} reduced={reduced} />
+      ) : historyIdx !== null ? (
+        <HistoryPanel
+          product={inventory[historyIdx]}
+          onBack={() => setHistoryIdx(null)}
+          reduced={reduced}
+        />
+      ) : (
+        <div className="flex h-full flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-mono uppercase tracking-wider text-text-tertiary">
+              Realtime sales
+            </span>
+            <span className="tabular font-mono text-mono text-text-tertiary">
+              {inventory.length} SKUs
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5 overflow-auto">
+            {inventory.map((p, i) => (
+              <InventoryRow
+                key={p.name}
+                product={p}
+                flash={
+                  flash?.idx === i ? { kind: flash.kind, qty: flash.qty } : null
+                }
+                onHistory={() => setHistoryIdx(i)}
+              />
+            ))}
+          </div>
+          {published && (
+            <div className="mt-auto flex items-center gap-2 border-t border-border pt-3">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
+              <span className="font-mono text-mono text-text-tertiary">
+                snapshot v1 · Redis
+              </span>
+              <button
+                type="button"
+                onClick={onRead}
+                disabled={reading}
+                className="ml-auto shrink-0 rounded-sm border border-border bg-surface-1 px-2 py-0.5 font-mono text-mono text-text-secondary transition-colors duration-150 hover:border-border-strong hover:text-text-primary disabled:opacity-40"
+              >
+                {reading ? 'reading…' : 'Read snapshot'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </AppWindow>
+  );
+}
+
 /* ------------------------------ section ---------------------------- */
 
 export default function ArchitectureConsumers() {
@@ -1931,6 +2256,94 @@ export default function ArchitectureConsumers() {
     return () => clearTimeout(t);
   }, [reading]);
 
+  // external producers (POS sell / Walpack transport) -> dashboard:3004
+  const [inventory, setInventory] = useState<Product[]>(INITIAL_INVENTORY);
+  const [producer, setProducer] = useState<{
+    kind: Producer;
+    phase: 'running' | 'resolved';
+    eventId: string;
+    idx: number;
+    qty: number;
+    product: string;
+  } | null>(null);
+  const [flash, setFlash] = useState<{
+    idx: number;
+    kind: Producer;
+    qty: number;
+  } | null>(null);
+  const producerRef = useRef(producer);
+  useEffect(() => {
+    producerRef.current = producer;
+  }, [producer]);
+
+  const doProduce = useCallback(
+    (kind: Producer) => {
+      if (producerRef.current || sagaRef.current || publishRef.current) return;
+      const eventId = Math.floor(Math.random() * 0xffff)
+        .toString(16)
+        .padStart(4, '0');
+      const idx = Math.floor(Math.random() * inventory.length);
+      const qty = 1 + Math.floor(Math.random() * 5);
+      producerRef.current = {
+        kind,
+        phase: 'running',
+        eventId,
+        idx,
+        qty,
+        product: inventory[idx].name,
+      };
+      setProducer(producerRef.current);
+      const m = PRODUCER_META[kind];
+      emitPin({
+        app: m.app,
+        who: m.source,
+        detail: `${m.event} evt_${eventId}`,
+        tone: 'accent',
+      });
+    },
+    [inventory, emitPin],
+  );
+
+  useEffect(() => {
+    if (!producer) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    if (producer.phase === 'running') {
+      timers.push(
+        setTimeout(() => {
+          setInventory(inv =>
+            inv.map((p, i) =>
+              i === producer.idx
+                ? producer.kind === 'pos'
+                  ? {
+                      ...p,
+                      stock: Math.max(0, p.stock - producer.qty),
+                      sold: p.sold + producer.qty,
+                    }
+                  : { ...p, stock: p.stock + producer.qty }
+                : p,
+            ),
+          );
+          setFlash({ idx: producer.idx, kind: producer.kind, qty: producer.qty });
+        }, ACCESS.forwardMs),
+      );
+      timers.push(
+        setTimeout(
+          () => setProducer(p => (p ? { ...p, phase: 'resolved' } : p)),
+          ACCESS.forwardMs + 120,
+        ),
+      );
+    } else if (producer.phase === 'resolved') {
+      timers.push(setTimeout(() => setProducer(null), ACCESS.resolveMs));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [producer]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 1600);
+    return () => clearTimeout(t);
+  }, [flash]);
+
   // refs for the cross-layout wires
   const stageRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
@@ -1942,8 +2355,10 @@ export default function ArchitectureConsumers() {
   const dashboardRef = useRef<HTMLDivElement>(null);
 
   // derived backend + wire state
+  const producing = producer?.phase === 'running';
   const backendDraining =
-    !!saga && (saga.phase === 'requesting' || saga.phase === 'responding');
+    (!!saga && (saga.phase === 'requesting' || saga.phase === 'responding')) ||
+    !!producing;
   const portalFlow: 'fwd' | 'rev' | null =
     consuming || saga?.phase === 'requesting'
       ? 'fwd'
@@ -1974,7 +2389,7 @@ export default function ArchitectureConsumers() {
       : null;
 
   const publishing = publish?.phase === 'publishing';
-  const busy = !!saga || !!publish;
+  const busy = !!saga || !!publish || !!producer;
   const readRef =
     reading === 'centralWeb'
       ? centralWebRef
@@ -2061,12 +2476,9 @@ export default function ArchitectureConsumers() {
               </motion.div>
 
               <motion.div ref={dashboardRef} variants={item}>
-                <ConsumerWindow
-                  host="dashboard.walton"
-                  port={3004}
-                  role="Realtime analytics"
-                  title="EcoFlow real time Dashboard"
-                  note="Streams sale.completed.v1"
+                <DashboardWindow
+                  inventory={inventory}
+                  flash={flash}
                   awaiting={awaitingFor('dashboard')}
                   onDecide={decide}
                   published={published}
@@ -2088,6 +2500,21 @@ export default function ArchitectureConsumers() {
                 redisPortRef={redisPortRef}
                 pin={pin}
               />
+            </motion.div>
+
+            {producer && (
+              <ReceiptPrint
+                key={producer.eventId}
+                producer={producer.kind}
+                product={producer.product}
+                qty={producer.qty}
+                eventId={producer.eventId}
+                reduced={reduced ?? false}
+              />
+            )}
+
+            <motion.div variants={item}>
+              <ProducerBar onProduce={doProduce} busy={busy} />
             </motion.div>
 
             {/* portal <-> push machine */}
@@ -2132,6 +2559,18 @@ export default function ArchitectureConsumers() {
                   reduced={reduced ?? false}
                 />
               </>
+            )}
+            {/* worker -> dashboard for a POS / Walpack producer event */}
+            {producing && (
+              <Wire
+                stageRef={stageRef}
+                fromRef={workerPortRef}
+                toRef={dashboardRef}
+                fromSide="center"
+                toSide="bottom"
+                flow="fwd"
+                reduced={reduced ?? false}
+              />
             )}
             {/* Redis -> a consumer reading the snapshot back */}
             <Wire
