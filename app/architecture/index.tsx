@@ -169,6 +169,9 @@ const TARGET_META: Record<Target, { host: string; port: number; app: string }> =
 /** Access-saga timing (ms) for each animated pass. */
 const ACCESS = { forwardMs: 2600, returnMs: 2600, resolveMs: 1200 } as const;
 
+/** How long the printed receipt/manifest stays up (flow + linger). */
+const RECEIPT_MS = 5200;
+
 /** A pinned event pushed into the terminal (session or access decision). */
 type PinSignal = {
   app: string;
@@ -2271,6 +2274,13 @@ export default function ArchitectureConsumers() {
     kind: Producer;
     qty: number;
   } | null>(null);
+  // the printed receipt lingers past the saga, so it decouples from `producer`
+  const [receipt, setReceipt] = useState<{
+    kind: Producer;
+    product: string;
+    qty: number;
+    eventId: string;
+  } | null>(null);
   const producerRef = useRef(producer);
   useEffect(() => {
     producerRef.current = producer;
@@ -2293,6 +2303,7 @@ export default function ArchitectureConsumers() {
         product: inventory[idx].name,
       };
       setProducer(producerRef.current);
+      setReceipt({ kind, product: inventory[idx].name, qty, eventId });
       const m = PRODUCER_META[kind];
       emitPin({
         app: m.app,
@@ -2343,6 +2354,12 @@ export default function ArchitectureConsumers() {
     const t = setTimeout(() => setFlash(null), 1600);
     return () => clearTimeout(t);
   }, [flash]);
+
+  useEffect(() => {
+    if (!receipt) return;
+    const t = setTimeout(() => setReceipt(null), RECEIPT_MS);
+    return () => clearTimeout(t);
+  }, [receipt]);
 
   // refs for the cross-layout wires
   const stageRef = useRef<HTMLDivElement>(null);
@@ -2430,8 +2447,22 @@ export default function ArchitectureConsumers() {
             </span>
           </motion.div>
 
-          {/* consumers on top, the backend they all read on the bottom */}
+          {/* producers up top, then consumers, then the backend */}
           <div ref={stageRef} className="relative flex flex-col gap-4">
+            <motion.div variants={item}>
+              <ProducerBar onProduce={doProduce} busy={busy} />
+            </motion.div>
+            {receipt && (
+              <ReceiptPrint
+                key={receipt.eventId}
+                producer={receipt.kind}
+                product={receipt.product}
+                qty={receipt.qty}
+                eventId={receipt.eventId}
+                reduced={reduced ?? false}
+              />
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <motion.div ref={portalRef} variants={item}>
                 <AppWindow host="portal.walton" port={3000} status="live">
@@ -2500,21 +2531,6 @@ export default function ArchitectureConsumers() {
                 redisPortRef={redisPortRef}
                 pin={pin}
               />
-            </motion.div>
-
-            {producer && (
-              <ReceiptPrint
-                key={producer.eventId}
-                producer={producer.kind}
-                product={producer.product}
-                qty={producer.qty}
-                eventId={producer.eventId}
-                reduced={reduced ?? false}
-              />
-            )}
-
-            <motion.div variants={item}>
-              <ProducerBar onProduce={doProduce} busy={busy} />
             </motion.div>
 
             {/* portal <-> push machine */}
